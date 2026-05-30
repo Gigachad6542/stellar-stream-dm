@@ -76,6 +76,11 @@ def parse_args() -> argparse.Namespace:
                    help="Minimum membership probability to keep a star")
 
     # Scoring
+    p.add_argument("--use-gnn-scorer", action="store_true",
+                   help="Include the GNN embedding distance in the combined score. OFF by default: "
+                        "on real data the encoder has a large sim-to-real gap (embedding distance "
+                        "~40 vs ~1 sim-to-sim), so it dominates and corrupts the score. Enable only "
+                        "after domain-randomization retraining closes the gap.")
     p.add_argument("--density-bin-width", type=float, default=1.0,
                    help="Density profile bin width [deg]")
     p.add_argument("--kin-bin-width", type=float, default=2.0,
@@ -112,6 +117,25 @@ def parse_args() -> argparse.Namespace:
                         "(CDM, WDM, FDM, SIDM) and report which best matches observations.")
     p.add_argument("--compare-top", type=int, default=5,
                    help="Number of top candidates to compare across DM models (default: 5)")
+
+    # Detection -> timeline handoff (auto-seed the grid from the data)
+    p.add_argument("--auto-detect", action="store_true",
+                   help="Run the detection front-end on the real stream first, then seed the "
+                        "forward-model grid: phi1 from detected gaps (or in-frame quartiles), "
+                        "and the time window from the GNN time-since-impact estimate.")
+    p.add_argument("--detector-checkpoint", type=str, default=None,
+                   help="Path to a trained timeline GNN checkpoint for P(impact) + time estimate. "
+                        "If omitted, detection is model-free (gap-based localisation only).")
+    p.add_argument("--t-window", type=float, default=2.0,
+                   help="Half-width [Gyr] of the time grid around the GNN time estimate "
+                        "when --auto-detect is set (default: 2.0).")
+    p.add_argument("--max-phi1-seeds", type=int, default=3,
+                   help="Max number of phi1 positions to seed from detection (default: 3).")
+    p.add_argument("--detect-sig-threshold", type=float, default=3.0,
+                   help="Gap significance at/above which a model-free detection counts (default: 3.0).")
+    p.add_argument("--require-detection", action="store_true",
+                   help="With --auto-detect, exit without running the grid if no probable impact "
+                        "is found (neither a significant gap nor a GNN detection).")
 
     # Convenience
     p.add_argument("--quick", action="store_true",
@@ -209,6 +233,7 @@ def main() -> None:
         gap_detection_min_depth=args.gap_min_depth,
         gap_detection_min_significance=args.gap_min_sig,
         score_weights=ScoreWeights(),
+        use_gnn_scorer=args.use_gnn_scorer,
         use_fast_mode=args.fast,
         n_workers=args.n_workers,
         output_dir=args.output_dir,
@@ -233,6 +258,80 @@ def main() -> None:
 
     model = TimelineForwardModel(config)
     model.prepare()
+
+    # --- Detection -> timeline handoff (optional) ---
+    # Run AFTER prepare() (which loads the observed data + phi1 range) but BEFORE
+    # run_grid() (which builds the grid from config). The base stream and null
+    # hypothesis do not depend on the grid parameters, so seeding the config in
+    # place here requires no recomputation.
+    if args.auto_detect:
+        import json
+
+        from src.forward_model.detection import (
+            StreamImpactDetector,
+            detect_impacts_modelfree,
+            seed_config_from_detection,
+        )
+
+        log.info("")
+        log.info("=" * 70)
+        log.info("DETECTION FRONT-END (auto-seeding the grid)")
+        log.info("=" * 70)
+
+        if args.detector_checkpoint:
+            detector = StreamImpactDetector(args.detector_checkpoint, device="cpu")
+            detection = detector.detect(
+                model.obs_particles, model.phi1_range, stream_name=config.stream_name,
+                density_bin_width_deg=config.density_bin_width_deg,
+                gap_min_depth=config.gap_detection_min_depth,
+                gap_min_significance=config.gap_detection_min_significance,
+                significant_threshold=args.detect_sig_threshold,
+            )
+        else:
+            log.info("No detector checkpoint given; using model-free gap detection only.")
+            detection = detect_impacts_modelfree(
+                model.obs_particles, model.phi1_range, stream_name=config.stream_name,
+                density_bin_width_deg=config.density_bin_width_deg,
+                gap_min_depth=config.gap_detection_min_depth,
+                gap_min_significance=config.gap_detection_min_significance,
+                significant_threshold=args.detect_sig_threshold,
+            )
+
+        log.info("Detection: impact_detected=%s | %s",
+                 detection.impact_detected, detection.detection_reason)
+        if detection.gnn_available:
+            log.info("  GNN: p_impact=%.3f, t_since~%s Gyr, effective_n=%.2f (over-confident on real "
+                     "data; treat as advisory)",
+                     detection.p_impact,
+                     f"{detection.t_since_gyr_estimate:.2f}" if detection.t_since_gyr_estimate else "n/a",
+                     detection.effective_n_impacts or 0.0)
+
+        # Persist the detection result alongside the forward-model outputs.
+        det_dir = Path(config.output_dir) / config.stream_name
+        det_dir.mkdir(parents=True, exist_ok=True)
+        det_path = det_dir / "detection_result.json"
+        with open(det_path, "w") as f:
+            json.dump(detection.to_dict(), f, indent=2)
+        log.info("  Detection result saved to %s", det_path)
+
+        if args.require_detection and not detection.impact_detected:
+            log.info("No probable impact detected and --require-detection set; exiting "
+                     "before grid evaluation.")
+            return
+
+        # Seed the grid: replace the config with a narrowed one.
+        config = seed_config_from_detection(
+            detection, config,
+            t_window_gyr=args.t_window,
+            max_phi1_seeds=args.max_phi1_seeds,
+            min_t_since_gyr=config.t_since_range[0],
+            max_t_since_gyr=config.t_since_range[1],
+        )
+        model.cfg = config
+        log.info("Seeded grid: phi1=%s, t_since_range=%s",
+                 [f"{p:.1f}" for p in config.impact_phi1_values], config.t_since_range)
+        log.info("=" * 70)
+
     results = model.run_grid()
 
     # Optional refinement pass
