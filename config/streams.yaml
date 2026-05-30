@@ -1,0 +1,274 @@
+# Stellar stream catalog for DM subhalo detection pipeline.
+# All stream-specific parameters live here — never hardcode stream names in Python.
+# Coordinate frame: ICRS for sky positions; stream-aligned (phi1, phi2) for analysis.
+
+streams:
+
+  GD1:
+    display_name: "GD-1"
+    analysis_tier: "primary"         # 4000 members — flagship stream for gap detection
+    galstreams_key: "GD-1-I21"
+    ra_center_deg: 150.0
+    dec_center_deg: 35.0
+    # phi1 in GD-1-I21 (Ibata+2021) stream frame; galstreams track spans [-21.4, 80.9]
+    # Use generous margin to capture simulated particles near the orbit.
+    phi1_range_deg: [-30.0, 90.0]
+    phi2_selection_deg: 5.0          # half-width cut in phi2 for member selection (generous for simulation)
+    # ICRS PM pre-cut for ADQL — conservative range that keeps all GD-1 members
+    # while rejecting ~90% of background stars before coordinate transform.
+    # GD-1 has pmra ~ -11 to -4 mas/yr, pmdec ~ -3 to +3 mas/yr (ICRS).
+    icrs_pm_precut:
+      pmra_min: -14.0
+      pmra_max: -2.0
+      pmdec_min: -5.0
+      pmdec_max: 5.0
+    distance_kpc: [7.0, 10.5]        # heliocentric distance range
+    pm1_range_masyr: [-13.0, -5.0]
+    pm2_range_masyr: [-3.0, 3.0]
+    expected_n_members: 4000
+    gaia_dr3_catalog: "gaiadr3.gaia_source"
+    membership_catalog:
+      source: "pwb18"
+      zenodo_url: "https://zenodo.org/record/1295543"
+    distance_method: "photometric"   # parallax | photometric | external_catalog
+    isochrone_age_gyr: 12.5
+    disruption_age_gyr: 3.0        # disruption timescale (Webb & Bovy 2019: ~3 Gyr for GD-1)
+    isochrone_feh: -2.3
+    simulation_priority: 1
+    prog_mass_solar: 5000          # GD-1 progenitor essentially dissolved (Carlberg 2012)
+    width_pc: 30
+    velocity_dispersion_kms: 0.4
+    disk_crossing: false
+    known_gaps:
+      - {phi1_center: -40.0, phi1_width: 3.0, label: "gap_1", candidate_dm: true}
+      - {phi1_center: -20.0, phi1_width: 5.0, label: "spur_region", candidate_dm: false}
+
+  Pal5:
+    display_name: "Pal 5"
+    analysis_tier: "primary"         # 500 members — disk-crossing stream (tests baryonic model)
+    galstreams_key: "Pal5-PW19"
+    ra_center_deg: 229.0
+    dec_center_deg: -0.1
+    phi1_range_deg: [-20.0, 15.0]
+    phi2_selection_deg: 1.0
+    distance_kpc: [21.0, 24.0]
+    pm1_range_masyr: [-2.5, -1.0]
+    pm2_range_masyr: [-2.5, -1.0]
+    expected_n_members: 500
+    gaia_dr3_catalog: "gaiadr3.gaia_source"
+    membership_catalog:
+      source: "ibata19"
+      zenodo_url: "https://doi.org/10.3847/2041-8213/ab2194"
+    distance_method: "photometric"
+    isochrone_age_gyr: 11.5
+    disruption_age_gyr: 5.0        # Pal 5 tidal tails ~5 Gyr (Dehnen+2004, Küpper+2012)
+    isochrone_feh: -1.4
+    simulation_priority: 2
+    prog_mass_solar: 15000         # Pal5 mass from Erkal+2017: ~15,000 M_sun
+    width_pc: 120
+    velocity_dispersion_kms: 0.3
+    disk_crossing: true              # Pal5 passes near disk; include bar/GMC perturbers
+    known_gaps: []
+
+  Orphan:
+    display_name: "Orphan-Chenab"
+    analysis_tier: "secondary"       # 200 members — halo stream with large distance gradient
+    galstreams_key: "Orphan-K23"
+    ra_center_deg: 153.0
+    dec_center_deg: 51.0
+    phi1_range_deg: [-50.0, 70.0]
+    phi2_selection_deg: 3.0
+    # Override box to 100x25 deg — phi1 span of 120 deg would compute 130x50 deg (tens of millions of rows)
+    icrs_ra_width_override_deg: 100.0
+    icrs_dec_width_override_deg: 25.0
+    # PM pre-cut: Orphan is a distant halo stream (15-55 kpc) with nearly zero ICRS proper motions
+    icrs_pm_precut:
+      pmra_min: -4.0
+      pmra_max:  4.0
+      pmdec_min: -4.0
+      pmdec_max:  4.0
+    distance_kpc: [15.0, 55.0]       # large distance gradient along stream
+    pm1_range_masyr: [-0.5, 0.5]
+    pm2_range_masyr: [-0.5, 0.5]
+    expected_n_members: 200
+    gaia_dr3_catalog: "gaiadr3.gaia_source"
+    membership_catalog:
+      source: "koposov19"
+      zenodo_url: "https://arxiv.org/abs/1812.08172"
+    distance_method: "photometric"
+    isochrone_age_gyr: 11.0
+    disruption_age_gyr: 3.0        # Orphan: no progenitor, long stream; ~3 Gyr (Koposov+2019)
+    isochrone_feh: -1.6
+    simulation_priority: 3
+    prog_mass_solar: 50000         # Orphan no identified progenitor; estimate from width (Newberg+2010)
+    width_pc: 300
+    velocity_dispersion_kms: 1.5
+    disk_crossing: false
+    known_gaps: []
+
+  ATLAS:
+    display_name: "ATLAS"
+    analysis_tier: "secondary"       # 300 members — secondary constraint stream
+    galstreams_key: "AAU-ATLAS-L21"
+    ra_center_deg: 20.0
+    dec_center_deg: -20.0
+    phi1_range_deg: [-30.0, 30.0]
+    phi2_selection_deg: 1.5
+    # ATLAS stream ICRS PMs from Li+2021: μα*≈-2.5 to 0, μδ≈0.5 to 2.5 (conservative padding)
+    icrs_pm_precut:
+      pmra_min: -5.0
+      pmra_max:  2.0
+      pmdec_min: -2.0
+      pmdec_max:  5.0
+    distance_kpc: [15.0, 22.0]
+    pm1_range_masyr: [-1.5, 0.5]
+    pm2_range_masyr: [-1.0, 1.0]
+    expected_n_members: 300
+    gaia_dr3_catalog: "gaiadr3.gaia_source"
+    membership_catalog:
+      source: "li21"
+      zenodo_url: "https://arxiv.org/abs/2104.12788"
+    distance_method: "photometric"
+    isochrone_age_gyr: 10.5
+    disruption_age_gyr: 2.5        # ATLAS: limited constraints; fiducial 2.5 Gyr
+    isochrone_feh: -1.5
+    simulation_priority: 4
+    prog_mass_solar: 20000         # ATLAS progenitor unknown; fiducial 2e4 M_sun
+    width_pc: 200
+    velocity_dispersion_kms: 0.8
+    disk_crossing: false
+    known_gaps: []
+
+  Jhelum:
+    display_name: "Jhelum"
+    analysis_tier: "forecast"        # 250 members — insufficient for gap detection; forecast-only
+    galstreams_key: "Jhelum-b-B19"   # NOTE: galstreams frame is misaligned (phi2≈-34° for stream)
+    # Custom great-circle frame: pole computed from Shipp+2018 / Bonaca+2019 stream endpoints
+    # (RA=348,Dec=-17) → (RA=16,Dec=-26), giving pole at RA=44.61°, Dec=60.94°.
+    # Verified: stream track maps to phi2 ∈ [-0.01, 3.3°] in this custom frame.
+    custom_frame_pole_ra_deg: 44.61
+    custom_frame_pole_dec_deg: 60.94
+    ra_center_deg: 6.0
+    dec_center_deg: -17.0
+    # In the custom frame, stream runs phi1 ≈ 355–23°.  phi1_min<0 triggers wrap logic:
+    # phi1 ∈ [350, 360] ∪ [0, 28].
+    phi1_range_deg: [-10.0, 28.0]
+    phi2_selection_deg: 3.0   # track phi2 reaches 3.3°; 3.0 half-width gives phi2_hw=6°
+    # Jhelum ICRS PMs from Bonaca+2019: μα*≈4-7, μδ≈-5 to -2 (conservative padding)
+    icrs_pm_precut:
+      pmra_min:  1.0
+      pmra_max:  9.0
+      pmdec_min: -8.0
+      pmdec_max:  0.0
+    distance_kpc: [12.0, 16.0]
+    # Custom-frame PMs derived from Bonaca+2019 ICRS values (pmra≈5.5, pmdec≈-3.5):
+    # pm_phi1 ≈ 6.1–6.5 mas/yr (along stream), pm_phi2 ≈ -2.1 to -1.0 mas/yr (perp)
+    pm1_range_masyr: [4.5, 8.0]
+    pm2_range_masyr: [-3.5, 0.5]
+    expected_n_members: 250
+    gaia_dr3_catalog: "gaiadr3.gaia_source"
+    membership_catalog:
+      source: "bonaca19"
+      zenodo_url: "https://arxiv.org/abs/1811.03631"
+    distance_method: "photometric"
+    isochrone_age_gyr: 12.0
+    disruption_age_gyr: 2.5        # Jhelum: wide morphology; fiducial 2.5 Gyr (Bonaca+2019)
+    isochrone_feh: -2.0
+    simulation_priority: 5
+    prog_mass_solar: 20000         # Jhelum progenitor unidentified; fiducial 2e4 M_sun
+    width_pc: 200
+    velocity_dispersion_kms: 1.0
+    disk_crossing: false
+    known_gaps: []
+    notes: "Wide-thin morphology may indicate baryonic perturbation; model carefully."
+
+  Fjorm:
+    display_name: "Fjorm (NGC 3201)"
+    analysis_tier: "forecast"        # 150 members — forecast-only; include for combined posterior
+    galstreams_key: "NGC3201-P21"
+    ra_center_deg: 154.0
+    dec_center_deg: -46.0
+    phi1_range_deg: [-50.0, 50.0]
+    phi2_selection_deg: 5.0   # widened from 1.0 — simulated orbit needs margin around track
+    # Override box — phi1 span of 100 deg would compute 110x43 deg (too large)
+    icrs_ra_width_override_deg: 80.0
+    icrs_dec_width_override_deg: 25.0
+    # NGC 3201 (Fjorm) distinctive retrograde ICRS PMs: μα*≈8.34, μδ≈-1.99 (Harris+Gaia EDR3)
+    icrs_pm_precut:
+      pmra_min:  4.0
+      pmra_max: 13.0
+      pmdec_min: -6.0
+      pmdec_max:  2.0
+    distance_kpc: [8.0, 12.0]
+    # NGC3201-P21 stream frame: phi1 direction aligns with ICRS pmra (~+8.4 mas/yr for the cluster),
+    # giving positive pm_phi1. Old value [-8,-4] was wrong sign; corrected to [3,14].
+    pm1_range_masyr: [3.0, 14.0]
+    pm2_range_masyr: [-4.0, 2.0]
+    expected_n_members: 150
+    gaia_dr3_catalog: "gaiadr3.gaia_source"
+    membership_catalog:
+      source: "malhan19"
+      zenodo_url: "https://arxiv.org/abs/1906.02295"
+    distance_method: "parallax"      # close enough for Gaia parallax
+    isochrone_age_gyr: 11.0
+    disruption_age_gyr: 3.0        # NGC 3201 (Fjorm): intact progenitor, tails ~3 Gyr
+    isochrone_feh: -1.6
+    simulation_priority: 6
+    prog_mass_solar: 140000        # NGC 3201 measured mass (Harris+1996 catalog, rev.2010)
+    width_pc: 60
+    velocity_dispersion_kms: 0.2
+    disk_crossing: false
+    known_gaps: []
+
+  Sylgr:
+    display_name: "Sylgr"
+    analysis_tier: "forecast"        # 100 members — forecast-only; sensitivity study only
+    galstreams_key: "Sylgr-I21"
+    # Stream track is at RA=[165,188], Dec=[-12,0] in ICRS (Ibata+2021 galstreams).
+    # Previous center (165, 35) was Dec=35 — completely wrong sky region.
+    ra_center_deg: 176.7
+    dec_center_deg: -5.6
+    # phi1 in Sylgr-I21 frame wraps through 0: stream is at phi1=[345,360]∪[0,11].
+    # phi1_range_deg [-20,20] triggers wrap-around logic in pre-filter (phi1_min<0).
+    phi1_range_deg: [-20.0, 15.0]
+    phi2_selection_deg: 3.0   # track phi2 ≈ -2.5 to 0; 3 deg half-width is sufficient
+    # Sylgr ICRS PMs from Ibata+2019: μα*≈-3, μδ≈-1 (conservative padding)
+    icrs_pm_precut:
+      pmra_min: -6.0
+      pmra_max:  1.0
+      pmdec_min: -4.0
+      pmdec_max:  2.0
+    distance_kpc: [4.0, 5.0]
+    pm1_range_masyr: [-3.0, 2.0]
+    pm2_range_masyr: [-2.0, 2.0]
+    expected_n_members: 100
+    gaia_dr3_catalog: "gaiadr3.gaia_source"
+    membership_catalog:
+      source: "ibata19b"
+      zenodo_url: "https://arxiv.org/abs/1806.03758"
+    distance_method: "parallax"
+    isochrone_age_gyr: 13.0
+    disruption_age_gyr: 2.0        # Sylgr: very cold nearby stream; likely recent ~2 Gyr
+    isochrone_feh: -2.9
+    simulation_priority: 7
+    prog_mass_solar: 5000          # Sylgr: very cold thin stream (Ibata+2019); low mass
+    width_pc: 20
+    velocity_dispersion_kms: 0.15
+    disk_crossing: false
+    known_gaps: []
+
+
+# Quality cuts applied to ALL streams before stream-specific cuts
+global_quality_cuts:
+  ruwe_max: 1.4
+  parallax_over_error_max: 5.0      # reject stars with significant parallax (foreground)
+  bp_rp_excess_factor_max: 1.3
+  phot_g_mean_mag_max: 20.7
+  astrometric_excess_noise_max: 1.0
+
+# Milky Way potential frame — matches galpy MWPotential2014 (Bovy 2015)
+galactocentric_frame:
+  galcen_distance_kpc: 8.0
+  z_sun_kpc: 0.0208
+  v_circ_kms: 220.0
+  roll_deg: 0.0

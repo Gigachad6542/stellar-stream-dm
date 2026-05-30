@@ -1,0 +1,171 @@
+# Dark matter model definitions for simulation and inference.
+# Each model specifies the subhalo mass function and structural parameters.
+# Consumed by: src/simulation/mass_functions.py, src/inference/sbi_pipeline.py
+
+models:
+
+  CDM:
+    display_name: "Cold Dark Matter"
+    abbreviation: "CDM"
+    model_idx: 0
+    mass_function:
+      type: "power_law"
+      alpha: -1.9                    # dN/dM ~ M^alpha; CDM prediction ~-1.9
+      alpha_prior: ["uniform", -2.1, -1.7]
+      log10_M_min_solar: 5.0
+      log10_M_max_solar: 9.0
+      log10_M_min_prior: ["uniform", 4.5, 6.0]
+    density_profile:
+      type: "NFW"
+      concentration_model: "Ludlow2016"
+    subhalo_spatial_distribution:
+      type: "NFW_host"
+      r_min_kpc: 1.0
+      r_max_kpc: 300.0
+    inferred_parameters:
+      - name: "log10_M_sub_mean"
+        prior: ["uniform", 5.0, 9.0]
+        description: "Mean impactor subhalo mass [log10 Msun]"
+      - name: "n_impacts"
+        prior: ["poisson_rate_uniform", 0.0, 10.0]
+        description: "Number of subhalo impacts on the stream segment"
+      # NOTE: alpha (mass function slope) was removed from inference — all training
+      # sims used fixed alpha=-1.9 so the embedding carries no alpha information.
+      # Add back once sims vary alpha across [-2.2, -1.6].
+      # NOTE: n_impacts prior capped at 10 (was 15) to match simulation cap.
+      # Sims never produce >10 impacts, so prior [0,15] caused prior-data mismatch
+      # leading to SBC rank pileup at 0 (posterior overestimates n_impacts).
+
+  WDM:
+    display_name: "Warm Dark Matter"
+    abbreviation: "WDM"
+    model_idx: 1
+    mass_function:
+      type: "power_law_suppressed"
+      alpha: -1.9
+      suppression:
+        type: "half_mode_filter"
+        # Lovell+2014: M_hm ~ 1.7e10 * (m_wdm/keV)^-3.33 Msun
+        formula: "1.7e10 * (m_wdm_kev)**(-3.33)"
+        beta: 2.7
+        gamma: -0.99                 # exponent: (1 + (M_hm/M)^beta)^(gamma/beta)
+      m_wdm_kev_prior: ["log_uniform", 0.5, 10.0]
+    density_profile:
+      type: "NFW"
+      concentration_model: "Ludlow2016_WDM"
+    subhalo_spatial_distribution:
+      type: "NFW_host"
+      r_min_kpc: 1.0
+      r_max_kpc: 300.0
+    inferred_parameters:
+      - name: "log10_m_wdm_kev"
+        prior: ["uniform", -0.3, 1.0]
+        description: "WDM thermal relic particle mass [log10 keV]"
+      - name: "n_impacts"
+        prior: ["poisson_rate_uniform", 0.0, 10.0]
+        description: "Number of subhalo impacts"
+
+  FDM:
+    display_name: "Fuzzy Dark Matter (Ultra-light Axion)"
+    abbreviation: "FDM"
+    model_idx: 2
+    mass_function:
+      type: "power_law_suppressed"
+      alpha: -1.9
+      suppression:
+        type: "fdm_jeans_filter"
+        # Hui+2017: M_Jeans ~ 1.5e8 * (m_axion / 1e-22 eV)^-1.5 Msun
+        formula: "1.5e8 * (m_fdm_1e22_ev)**(-1.5)"
+      m_fdm_prior: ["log_uniform", 1.0e-23, 1.0e-20]
+    density_profile:
+      type: "soliton_NFW"
+      # Soliton core: r_c ~ 1.6 / (m22 * (M_halo/1e9)^(1/3)) kpc (Schive+2014)
+      soliton_radius_formula: "1.6 / (m22 * (M_halo / 1.0e9)**(1.0/3.0))"
+    subhalo_spatial_distribution:
+      type: "NFW_host"
+      r_min_kpc: 1.0
+      r_max_kpc: 300.0
+    inferred_parameters:
+      - name: "log10_m_axion_ev"
+        prior: ["uniform", -23.0, -20.0]
+        description: "FDM axion mass [log10 eV]"
+      - name: "n_impacts"
+        prior: ["poisson_rate_uniform", 0.0, 8.0]
+        description: "Number of subhalo impacts (suppressed for FDM)"
+
+  SIDM:
+    display_name: "Self-Interacting Dark Matter"
+    abbreviation: "SIDM"
+    model_idx: 3
+    mass_function:
+      type: "power_law"
+      alpha: -1.9                    # same mass function as CDM at large scales
+      log10_M_min_solar: 5.0
+      log10_M_max_solar: 9.0
+    density_profile:
+      type: "isothermal_core_NFW"
+      # Core radius where rho_NFW(r_1) = rho_isothermal (Kaplinghat+2016)
+      concentration_model: "Kaplinghat2016"
+      cross_section_cm2_g_prior: ["log_uniform", 0.1, 100.0]
+    subhalo_spatial_distribution:
+      type: "NFW_host"
+      r_min_kpc: 1.0
+      r_max_kpc: 300.0
+    inferred_parameters:
+      - name: "log10_sigma_SIDM"
+        prior: ["uniform", -1.0, 2.0]
+        description: "SIDM cross section per unit mass [log10 cm^2/g]"
+      - name: "n_impacts"
+        prior: ["poisson_rate_uniform", 0.0, 10.0]
+        description: "Number of subhalo impacts"
+
+
+# ---------------------------------------------------------------------------
+# Model-independent suppression scale inference (preferred framing).
+#
+# Scientific rationale: WDM and FDM suppress the subhalo mass function below a
+# characteristic half-mode mass M_hm, while CDM and this SIDM configuration act
+# as unsuppressed reference families for the mass-function test. The WDM/FDM
+# suppression shapes are degenerate at the sensitivity achievable with Gaia DR3
+# stellar streams (Banik+2021, Dalal+2022). Rather than attempting to
+# discriminate WDM from FDM (which requires sub-percent precision on the
+# suppression shape), we infer M_hm directly as a model-independent constraint.
+#
+# This is what gets quoted in the abstract: "We constrain the half-mode mass
+# to M_hm < X at 95% CL", which maps to particle mass limits for any model.
+# ---------------------------------------------------------------------------
+suppression_scale_inference:
+  enabled: true
+  parameterization: "log10_M_hm"     # half-mode mass [log10 Msun]
+  prior: ["uniform", 4.0, 10.0]     # 1e4 to 1e10 Msun; lower edge is CDM-like
+  # Mapping from M_hm to particle mass (for quoting limits):
+  #   WDM:  m_wdm = (M_hm / 1.7e10)^(-1/3.33) keV
+  #   FDM:  m_axion = (M_hm / 1.5e8)^(-1/1.5) * 1e-22 eV
+  reference_model: "CDM"             # unsuppressed reference
+  detection_threshold_log10BF: 1.0   # log10 Bayes factor for suppression detection
+  # Summary statistic: ratio of inferred n_impacts (low M_sub) to CDM expectation
+  # A suppressed model predicts fewer low-mass impacts relative to CDM.
+  diagnostic: "n_impacts_ratio"
+
+# Model comparison (Level 2 hierarchical inference)
+# NOTE: 4-model Bayes factors are secondary to the suppression scale constraint.
+# They are reported for completeness but the paper leads with M_hm.
+model_comparison:
+  prior_over_models: "uniform"       # equal prior weight on all 4 models
+  bayes_factor_strong_threshold: 5.0 # log10 Bayes factor for strong preference
+  bayes_factor_method: "harmonic_mean"  # fast approximation; use nested_sampling=true for publication
+  # Interpretation caveat: log10_BF > 2 between WDM and FDM is unlikely given
+  # the suppression shape degeneracy. Strong evidence should be interpreted as
+  # "suppressed vs unsuppressed" (WDM/FDM vs CDM/SIDM), not as model discrimination.
+
+
+# Global impact physics shared across all DM models
+impact_physics:
+  # Subhalo velocity drawn from MW subhalo velocity distribution (roughly Maxwellian)
+  flyby_velocity_kms_prior: ["uniform", 50.0, 250.0]
+  impact_parameter_pc_prior: ["uniform", 0.1, 500.0]
+  # Minimum impact parameter to avoid invalidating impulse approximation
+  # (must be > 2 * tidal radius of progenitor; computed dynamically in subhalo.py)
+  impulse_validity_threshold_rh: 2.0
+  # Correction factor applied when M_sub > 1e8 Msun (Erkal+2016 Table 1)
+  massive_subhalo_correction_mass_threshold_solar: 1.0e8

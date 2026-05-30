@@ -1,0 +1,275 @@
+# Training configuration: hyperparameters, simulation budget, paths.
+
+simulation:
+  n_sims_per_model: 25000            # per DM model; 100K total for Plan 2
+  n_models: 4
+  random_seed: 42
+  output_dir: "data/simulations_v2_plan2"
+  chunk_size: 250                    # smaller chunks reduce restart loss during long runs
+  n_jobs: 8                          # benchmarked sweet spot on local i9-14900KF
+  job_timeout_sec: 300               # kill hung worker (zombie guard)
+  streams_for_training:
+    - GD1
+    - Pal5
+    - Orphan
+    - ATLAS
+    - Jhelum
+    - Fjorm
+    - Sylgr
+  stream_sample_weights: "sqrt_n_members"  # avoid GD-1 dominance
+  n_stars_per_sim: 5000
+  n_steps_back: 60                   # speed/fidelity tradeoff; old default was 100
+  min_source_n_stars: 800            # raw generated stars before final resampling
+  max_source_n_stars: 5000
+  source_n_stars_factor: 1.8         # source stars ~= final target * factor
+  baryonic_perturbation_prob: 0.8    # Plan 2: model-independent baryonic rate
+  domain_randomization:
+    enabled: true
+    noise_scale_factor: ["uniform", 0.5, 2.0]
+    foreground_contamination_fraction: ["uniform", 0.05, 0.30]
+    membership_corruption_fraction: ["uniform", 0.05, 0.20]
+    membership_low_prob_range: [0.05, 0.49]
+    membership_noise_sigma: 0.10
+    baryonic_perturbation_probability: 0.8
+    bar_perturbation_probability: 0.3
+    n_stars_per_sim: ["uniform", 200, 3000]
+    potential_variation: true
+
+preprocessing:
+  feature_normalization: "standardize"
+  max_stars_per_sim: 1200            # fast V2 primary run; 3000 reserved for fidelity ablation
+  augmentation:
+    enabled: true
+    phi1_offset_deg: ["uniform", -5.0, 5.0]
+    phi2_noise_deg: ["normal", 0.0, 0.05]
+    distance_scatter: ["lognormal", 0.0, 0.02]
+    pm_noise_masyr: ["normal", 0.0, 0.02]
+    flip_phi1: true                  # mirror stream (physical symmetry)
+
+graph:
+  k_neighbors: 8                     # fast V2 primary run; 16 reserved for graph-density ablation
+  construction_features: ["phi1_norm", "phi2_norm", "pm1_norm", "pm2_norm"]
+  node_features:
+    - phi1
+    - phi2
+    - dist
+    - pm1
+    - pm2
+    - vrad
+    - e_dist
+    - e_pm1
+    - e_pm2
+    - e_vrad
+    - membership_prob
+    - stream_GD1
+    - stream_Pal5
+    - stream_Orphan
+    - stream_ATLAS
+    - stream_Jhelum
+    - stream_Fjorm
+    - stream_Sylgr
+  edge_features: ["delta_phi1", "delta_phi2", "delta_pm1", "delta_pm2", "dist_4d"]
+  n_node_features: 18               # 11 physical + 7 stream one-hot (+ 2 orbital if enabled)
+  n_edge_features: 5                # (+ 2 orbital if enabled)
+  orbital_features:
+    enabled: false                   # set true after regenerating training data with R_cyl/z_cyl
+    n_extra_node_features: 2         # R_cyl, z_cyl
+    n_extra_edge_features: 2         # delta_R_cyl, delta_z_cyl
+  multi_scale:
+    enabled: false                   # disabled for fast primary run; enable for multi-scale ablation
+    n_segments: 20
+    k_segment_neighbors: 4
+    seg_hidden_dim: 64
+    seg_embedding_dim: 64
+  profile_branch:
+    enabled: false                   # enable for signal-ladder impact/no-impact probes
+    n_bins: 48
+    hidden_dim: 64
+  cache_graphs: false
+  graph_cache_dir: null   # disabled: 46K graphs × 1.5 MB = 70 GB; not enough SSD space
+
+model:
+  architecture: "gnn_encoder"
+  task_formulation: "binary_regression"
+  n_reg_targets: 2                   # auxiliary regression: [n_impacts, log_t_since_last_impact]
+  gnn:
+    conv_type: "GINEConv"
+    n_layers: 6
+    hidden_dim: 256
+    embedding_dim: 128
+    dropout: 0.1
+    batch_norm: true
+    residual_connections: true
+    global_pooling: "mean+max"       # concatenate mean and max -> 512 before MLP
+    use_attention_readout: true       # enable per-node importance scores
+  transformer:
+    enabled: false
+    n_heads: 8
+    n_layers: 4
+    d_model: 256
+    dropout: 0.1
+    positional_encoding: "phi1_continuous"
+    max_stars: 3000                  # subsample above this for O(N^2) attention
+  baseline_1d:
+    enabled: true
+    type: "CNN"
+    kernel_sizes: [3, 5, 9, 15]
+    n_filters: [32, 64, 128, 64]
+    n_bins: 200
+    channels: ["density", "pm1_mean", "pm2_mean"]
+
+training:
+  batch_size: 32
+  n_epochs: 200
+  n_epochs_warmup: 5
+  optimizer: "AdamW"
+  learning_rate: 3.0e-4
+  weight_decay: 1.0e-4
+  lr_scheduler: "cosine_annealing_with_restarts"
+  T_0: 50
+  T_mult: 2
+  gradient_clip_norm: 1.0
+  mixed_precision: true              # bf16; RTX 4090 (Ampere) supports bfloat16
+  compile_model: false               # torch.compile causes access violations on Windows; disabled
+  device: "cuda"
+  n_workers_dataloader: 4
+  pin_memory: true
+  checkpoint_every_n_epochs: 10
+  checkpoint_dir: "checkpoints"
+  early_stopping_patience: 60        # must be >= T_0 (50) to survive warm-restart LR spikes
+  cuda_memory_fraction: 0.75         # cap PyTorch allocator to 75% VRAM (~18 GB); leaves room for Ollama
+  # Data splits: managed by src/data/splits.py for reproducibility.
+  # Split ratios must sum to 1.0. The test set is evaluated ONCE before paper.
+  split_ratios:
+    train: 0.70
+    val: 0.15
+    test: 0.15
+  split_seed: 42
+  split_stratified: true               # stratify by DM model for balanced evaluation
+
+sbi:
+  algorithm: "SNPE_C"                # APT: Automatic Posterior Transformation
+  n_rounds: 5
+  n_sims_first_round: 5000
+  n_sims_per_round: 2000
+  density_estimator:
+    type: "nsf"                      # Neural Spline Flow
+    n_transforms: 8
+    n_bins: 8
+    hidden_dims: [256, 256]
+    embedding_net: "gnn_encoder"
+  mcmc_n_chains: 4
+  mcmc_n_samples: 1000
+  mcmc_warmup: 500
+
+inference:
+  n_posterior_samples: 10000
+  credible_interval: 0.9
+  n_model_comparison_samples: 5000
+  log_bayes_factor_method: "harmonic_mean"
+  nested_sampling: false
+
+# ---------------------------------------------------------------------------
+# Ablation experiments (Table 1 in the paper)
+# Run with: python scripts/train.py --ablation <name>
+# ---------------------------------------------------------------------------
+ablations:
+  # Primary encoder comparison: GINEConv vs GCN (Ma+2025 uses GCN)
+  gcn_baseline:
+    model.gnn.conv_type: "GCNConv"
+    model.gnn.n_layers: 6
+    model.gnn.hidden_dim: 256
+    description: "GCN encoder (Ma+2025 replication)"
+
+  # Shallower GNN
+  gnn_3layer:
+    model.gnn.n_layers: 3
+    description: "GINEConv with 3 layers (depth ablation)"
+
+  # No edge features (tests value of spatial relations)
+  no_edge_features:
+    model.gnn.conv_type: "GINConv"    # GINConv ignores edge features
+    description: "GIN without edge features (edge importance ablation)"
+
+  # Power spectrum baseline (non-ML)
+  power_spectrum_only:
+    model.architecture: "power_spectrum_sbi"
+    description: "1D power spectrum as SBI summary (Bovy+2017 approach)"
+
+  # Transformer ensemble member
+  transformer_only:
+    model.architecture: "transformer"
+    model.transformer.enabled: true
+    description: "Transformer-only encoder (attention vs message-passing)"
+
+  # Fewer simulations (data efficiency)
+  low_data_5k:
+    simulation.n_sims_per_model: 1250
+    description: "5K total sims (4x less) — data efficiency test"
+
+# ---------------------------------------------------------------------------
+# V2 training: binary (suppressed/unsuppressed) + M_hm regression + curriculum
+# Run with: python scripts/train_v2.py --epochs 300
+# ---------------------------------------------------------------------------
+training_v2:
+  batch_size: 128
+  # Main publication run uses model_family. Signal-ladder probes should pass
+  # --binary-target impact_detectable until observable impact recovery is stable.
+  binary_target: "model_family"
+  label_schema: "compact"              # use "timeline" for impact-age auxiliary targets
+  regression_target: "raw"             # raw | timeline_effective | timeline_detectable | strength_time
+  impact_threshold: 0.5
+  learning_rate: 1.0e-3
+  weight_decay: 1.0e-4
+  T_0: 100                            # cosine annealing warm restart period
+  T_mult: 2
+  early_stopping_patience: 80
+  label_smoothing: 0.1
+  n_reg_targets: 2                    # auxiliary regression: n_impacts + log_t_since_last_impact
+  preload_ram: true                   # one shared RAM copy; set false if memory is tight
+  max_val_batches: 50                 # fast per-epoch validation slice; run full validation after training
+  log_every_batches: 100              # progress lines inside long epochs
+  predict_uncertainty: false           # set true for aleatoric M_hm uncertainty
+  # Loss weights: total = alpha*BCE + beta*M_hm + gamma*reg
+  alpha_binary: 1.0
+  beta_mhm: 1.0
+  gamma_reg: 0.3
+  disable_mhm_for_observable_targets: true
+  # Curriculum learning: domain randomization is baked into generated HDF5 files.
+  # This ramp controls extra train-time augmentation and the M_hm loss weight.
+  curriculum:
+    enabled: true
+    stage1_end: 50                     # epochs 1-50: low augmentation / lower M_hm weight
+    stage2_end: 150                    # epochs 51-150: linear ramp to full augmentation
+    # stage 3 (151+): full train-time augmentation
+
+  # New ablations for V2 paper table
+  ablations_v2:
+    binary_vs_3class:
+      description: "Binary vs 3-class task formulation (key ablation)"
+    no_domain_rand:
+      description: "Without domain randomization"
+    no_curriculum:
+      curriculum.enabled: false
+      description: "Without curriculum learning (full noise from epoch 1)"
+    no_multi_scale:
+      graph.multi_scale.enabled: false
+      description: "Without multi-scale segment graph"
+    no_attention:
+      model.gnn.use_attention_readout: false
+      description: "Without attention readout"
+
+logging:
+  wandb_project: "stellar-stream-dm"
+  wandb_entity: null
+  log_every_n_steps: 50
+  log_grad_norms: true
+  log_embedding_pca: true
+
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  simulations: "data/simulations_v2_plan2"
+  checkpoints: "checkpoints"
+  outputs: "outputs"
+  figures: "outputs/figures"

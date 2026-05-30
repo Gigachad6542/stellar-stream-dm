@@ -1,0 +1,313 @@
+#!/usr/bin/env python
+"""
+Timeline Forward Model runner.
+
+Evaluates forced subhalo encounters against real stream data to find
+the encounter parameters that best reproduce the observed morphology.
+
+Usage:
+    python scripts/run_timeline_forward_model.py --stream GD1
+    python scripts/run_timeline_forward_model.py --stream GD1 --phi1 -40 -20
+    python scripts/run_timeline_forward_model.py --stream GD1 --log10-mass-range 6.5 8.0 --t-range 1.0 5.0
+    python scripts/run_timeline_forward_model.py --stream GD1 --quick  # fast smoke test
+
+Output:
+    outputs/forward_model/{stream}/forward_model_results.json
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import sys
+import time
+from pathlib import Path
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import matplotlib
+matplotlib.use("Agg")
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Timeline forward model: find encounter params that reproduce observed gaps."
+    )
+    p.add_argument("--stream", type=str, default="GD1",
+                   help="Stream name (must match config/streams.yaml key)")
+    p.add_argument("--config", type=str, default="config/streams.yaml",
+                   help="Path to streams config YAML")
+    p.add_argument("--h5", type=str, default="data/processed/streams.h5",
+                   help="Path to processed real-stream HDF5")
+    p.add_argument("--output-dir", type=str, default="outputs/forward_model",
+                   help="Output directory for results")
+
+    # Grid parameters
+    p.add_argument("--log10-mass-range", type=float, nargs=2, default=[6.0, 8.5],
+                   metavar=("MIN", "MAX"),
+                   help="log10(M_sub/Msun) range")
+    p.add_argument("--log10-mass-step", type=float, default=0.25,
+                   help="Step size in log10(M)")
+    p.add_argument("--t-range", type=float, nargs=2, default=[0.5, 10.0],
+                   metavar=("MIN", "MAX"),
+                   help="t_since_impact [Gyr] range")
+    p.add_argument("--t-step", type=float, default=0.5,
+                   help="Step size in t_since [Gyr]")
+    p.add_argument("--phi1", type=float, nargs="+", default=None,
+                   help="Impact phi1 positions [deg]. Default: known gap locations from config.")
+
+    # Encounter geometry
+    p.add_argument("--flyby-vel", type=float, default=200.0,
+                   help="Flyby velocity [km/s]")
+    p.add_argument("--impact-param", type=float, default=0.1,
+                   help="Impact parameter [kpc]")
+
+    # Simulation
+    p.add_argument("--n-stars", type=int, default=5000,
+                   help="Number of stars in simulated stream")
+    p.add_argument("--seed", type=int, default=42,
+                   help="Random seed for stream generation")
+
+    # Observation filtering
+    p.add_argument("--phi2-cut", type=float, default=1.0,
+                   help="Half-width phi2 cut for stream member selection [deg]")
+    p.add_argument("--membership-min", type=float, default=0.5,
+                   help="Minimum membership probability to keep a star")
+
+    # Scoring
+    p.add_argument("--density-bin-width", type=float, default=1.0,
+                   help="Density profile bin width [deg]")
+    p.add_argument("--kin-bin-width", type=float, default=2.0,
+                   help="Kinematic comparison bin width [deg]")
+    p.add_argument("--gap-min-depth", type=float, default=0.3,
+                   help="Minimum gap depth for detection")
+    p.add_argument("--gap-min-sig", type=float, default=2.0,
+                   help="Minimum gap significance for detection")
+
+    # Evolution mode
+    p.add_argument("--fast", action="store_true",
+                   help="Fast mode: use impulse approximation instead of full orbit integration. "
+                        "~500x faster but less physically accurate.")
+    p.add_argument("--n-workers", type=int, default=1,
+                   help="Number of parallel worker processes. >1 uses multiprocessing for "
+                        "embarrassingly parallel grid evaluation. Default: 1 (sequential).")
+
+    # Refinement
+    p.add_argument("--refine", action="store_true",
+                   help="After coarse grid, refine top candidates with finer sub-grid")
+    p.add_argument("--refine-top", type=int, default=5,
+                   help="Number of top candidates to refine around (default: 5)")
+
+    # Multi-encounter
+    p.add_argument("--multi-encounter", type=int, default=0, metavar="N",
+                   help="Run multi-encounter evaluation with N sequential impacts. "
+                        "Uses random sampling of encounter configurations.")
+    p.add_argument("--multi-samples", type=int, default=100,
+                   help="Number of random multi-encounter samples to evaluate (default: 100)")
+
+    # Model comparison
+    p.add_argument("--compare-models", action="store_true",
+                   help="After grid, evaluate top candidates under all 4 DM models "
+                        "(CDM, WDM, FDM, SIDM) and report which best matches observations.")
+    p.add_argument("--compare-top", type=int, default=5,
+                   help="Number of top candidates to compare across DM models (default: 5)")
+
+    # Convenience
+    p.add_argument("--quick", action="store_true",
+                   help="Quick smoke test: small grid (3 masses x 3 times), implies --fast")
+    p.add_argument("--top-k", type=int, default=20,
+                   help="Number of top candidates to save in detail")
+    p.add_argument("--verbose", "-v", action="store_true",
+                   help="Verbose (DEBUG) logging")
+
+    return p.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+
+    # Logging
+    level = logging.DEBUG if args.verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(name)-30s %(levelname)-7s %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    # Import after path setup
+    import yaml
+    from src.forward_model.pipeline import ForwardModelConfig, TimelineForwardModel
+    from src.forward_model.scoring import ScoreWeights
+
+    # Resolve impact_phi1 values
+    if args.phi1 is not None:
+        phi1_values = args.phi1
+    else:
+        # Default: use known gap locations from stream config, but only if they
+        # fall within the actual data extent. The config known_gaps may use a
+        # different phi1 convention than the stored data.
+        import h5py
+        import numpy as np
+
+        with open(args.config) as f:
+            streams_cfg = yaml.safe_load(f)
+        s_cfg = streams_cfg["streams"][args.stream]
+
+        # Determine actual data phi1 range
+        with h5py.File(args.h5, "r") as f:
+            obs_phi1 = f[f"streams/{args.stream}/members/phi1"][:]
+        data_p5, data_p95 = float(np.percentile(obs_phi1, 5)), float(np.percentile(obs_phi1, 95))
+
+        known = s_cfg.get("known_gaps", [])
+        phi1_values = [
+            g["phi1_center"] for g in known
+            if g.get("candidate_dm", False)
+            and data_p5 <= g["phi1_center"] <= data_p95
+        ]
+
+        if not phi1_values:
+            # Gaps are outside data extent or none marked as DM candidates.
+            # Place test impacts at 1/4 and 1/2 of the data range.
+            q25 = float(np.percentile(obs_phi1, 25))
+            q50 = float(np.percentile(obs_phi1, 50))
+            phi1_values = [q25, q50]
+            logging.getLogger(__name__).info(
+                "No DM-candidate gaps within data extent for %s; "
+                "using phi1=[%.1f, %.1f] (25th, 50th percentile)",
+                args.stream, q25, q50,
+            )
+
+    # Quick mode overrides (implies fast mode)
+    if args.quick:
+        args.log10_mass_range = [6.5, 7.5]
+        args.log10_mass_step = 0.5
+        args.t_range = [1.0, 3.0]
+        args.t_step = 1.0
+        args.n_stars = 2000
+        args.fast = True
+        logging.getLogger(__name__).info("Quick mode: small grid + fast (impulse) mode")
+
+    # Build config
+    config = ForwardModelConfig(
+        stream_name=args.stream,
+        config_path=args.config,
+        processed_h5_path=args.h5,
+        log10_mass_range=tuple(args.log10_mass_range),
+        log10_mass_step=args.log10_mass_step,
+        t_since_range=tuple(args.t_range),
+        t_since_step=args.t_step,
+        impact_phi1_values=phi1_values,
+        flyby_vel_kms=args.flyby_vel,
+        impact_param_kpc=args.impact_param,
+        n_stars_sim=args.n_stars,
+        base_seed=args.seed,
+        phi2_cut_deg=args.phi2_cut,
+        membership_prob_min=args.membership_min,
+        density_bin_width_deg=args.density_bin_width,
+        kinematic_bin_width_deg=args.kin_bin_width,
+        gap_detection_min_depth=args.gap_min_depth,
+        gap_detection_min_significance=args.gap_min_sig,
+        score_weights=ScoreWeights(),
+        use_fast_mode=args.fast,
+        n_workers=args.n_workers,
+        output_dir=args.output_dir,
+        top_k=args.top_k,
+    )
+
+    # Run
+    log = logging.getLogger("forward_model")
+    mode_str = "FAST (impulse approximation)" if config.use_fast_mode else "FULL (orbit-integrated evolution)"
+    log.info("=" * 70)
+    log.info("Timeline Forward Model")
+    log.info("  Stream: %s", config.stream_name)
+    log.info("  Mode: %s", mode_str)
+    log.info("  Mass range: log10(M) = [%.2f, %.2f] step %.2f",
+             config.log10_mass_range[0], config.log10_mass_range[1], config.log10_mass_step)
+    log.info("  Time range: [%.1f, %.1f] Gyr step %.1f",
+             config.t_since_range[0], config.t_since_range[1], config.t_since_step)
+    log.info("  Impact phi1: %s", config.impact_phi1_values)
+    log.info("=" * 70)
+
+    t_start = time.perf_counter()
+
+    model = TimelineForwardModel(config)
+    model.prepare()
+    results = model.run_grid()
+
+    # Optional refinement pass
+    if args.refine:
+        log.info("")
+        log.info("=" * 70)
+        log.info("REFINEMENT PASS")
+        log.info("=" * 70)
+        results = model.refine_top_candidates(results, n_top=args.refine_top)
+
+    out_path = model.save_results(results)
+
+    total_time = time.perf_counter() - t_start
+    log.info("=" * 70)
+    log.info("DONE in %.1f s", total_time)
+    log.info("Results: %s", out_path)
+    log.info("Best candidate:")
+    best = results[0]
+    log.info("  log10(M) = %.2f, t = %.1f Gyr, phi1 = %.1f deg",
+             best.log10_mass, best.t_since_gyr, best.impact_phi1)
+    log.info("  combined_score = %.4f", best.score.combined)
+    log.info("  density_residual = %.4f", best.score.density_residual)
+    log.info("  gap_agreement = %.4f", best.score.gap_agreement)
+    log.info("  kinematic_perturbation = %.4f", best.score.kinematic_perturbation)
+    log.info("=" * 70)
+
+    # --- DM model comparison (optional) ---
+    if args.compare_models:
+        log.info("")
+        log.info("=" * 70)
+        log.info("DM MODEL COMPARISON (top-%d candidates × 4 models)", args.compare_top)
+        log.info("=" * 70)
+
+        top_candidates = [
+            {"log10_mass": r.log10_mass, "t_since_gyr": r.t_since_gyr,
+             "impact_phi1": r.impact_phi1}
+            for r in results[:args.compare_top]
+        ]
+        comparison_results = model.run_model_comparison(candidates=top_candidates)
+        comp_path = model.save_model_comparison_results(comparison_results)
+        log.info("Model comparison results: %s", comp_path)
+
+    # --- Multi-encounter evaluation (optional) ---
+    if args.multi_encounter > 0:
+        log.info("")
+        log.info("=" * 70)
+        log.info("MULTI-ENCOUNTER EVALUATION (%d encounters x %d samples)",
+                 args.multi_encounter, args.multi_samples)
+        log.info("=" * 70)
+
+        multi_results = model.run_multi_encounter_grid(
+            n_encounters=args.multi_encounter,
+            n_random_samples=args.multi_samples,
+            seed=args.seed,
+        )
+        multi_path = model.save_multi_encounter_results(multi_results)
+        log.info("Multi-encounter results: %s", multi_path)
+
+        if multi_results:
+            mbest = multi_results[0]
+            log.info("Best multi-encounter (combined=%.4f):", mbest.score.combined)
+            for enc in mbest.encounters:
+                log.info("  M=10^%.2f, t=%.1f Gyr, phi1=%.1f deg",
+                         enc["log10_mass"], enc["t_since_gyr"], enc["impact_phi1"])
+
+            # Compare single vs multi
+            single_best = results[0].score.combined
+            multi_best = mbest.score.combined
+            if multi_best < single_best:
+                log.info("  Multi-encounter IMPROVES over single: %.4f vs %.4f (%.1f%%)",
+                         multi_best, single_best,
+                         100.0 * (single_best - multi_best) / max(single_best, 1e-8))
+            else:
+                log.info("  Multi-encounter does not improve over single-encounter best")
+
+
+if __name__ == "__main__":
+    main()

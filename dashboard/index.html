@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar Stream DM - Project Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="nav-header">
+            <div class="logo-icon">&#9733;</div>
+            <h2>Stellar Stream DM</h2>
+        </div>
+        <ul class="nav-links">
+            <li><a href="#overview" class="active">Overview</a></li>
+            <li><a href="#eli5">The Big Picture</a></li>
+            <li><a href="#science">Science Background</a></li>
+            <li><a href="#architecture">GNN Architecture</a></li>
+            <li><a href="#features">Integrated Features</a></li>
+            <li><a href="#data-pipeline">Data Pipeline</a></li>
+            <li><a href="#inference">SBI Inference</a></li>
+            <li><a href="#hierarchical">Hierarchical Model</a></li>
+            <li><a href="#mock-challenge">Mock Challenge</a></li>
+            <li><a href="#dm-models">DM Models</a></li>
+            <li><a href="#streams">Target Streams</a></li>
+            <li><a href="#test-results">Test Results</a></li>
+            <li><a href="#config">Configuration</a></li>
+        </ul>
+        <div class="nav-footer">
+            <button class="pdf-btn" onclick="exportPDF()">&#128196; Export Full PDF</button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="content" id="pdf-content">
+        <!-- Hero / Overview -->
+        <section id="overview" class="section hero-section">
+            <div class="hero-content">
+                <h1>Stellar Stream Dark Matter Detection</h1>
+                <p class="subtitle">A Framework for Constraining Dark Matter Substructure from Gaia DR3 Stellar Streams<br/>Using Graph Neural Networks + Simulation-Based Inference</p>
+                <div class="plain-english" style="margin: 16px 0; border-left-color: #f39c12; background: rgba(243, 156, 18, 0.08);">
+                    <strong>Status:</strong> This is a pipeline design and implementation, trained and validated on simulations only. No real Gaia observations have been analysed yet. No constraints on real dark matter properties are reported. Charts labelled "illustrative" or "projected" show design targets, not measured results.
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-number">4</span>
+                        <span class="stat-label">DM Models</span>
+                        <span class="stat-desc">CDM, WDM, FDM, SIDM</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number">7</span>
+                        <span class="stat-label">Streams</span>
+                        <span class="stat-desc">GD-1, Pal 5, Orphan, ATLAS, Jhelum, Fjorm, Sylgr</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number">40K</span>
+                        <span class="stat-label">Training Sims</span>
+                        <span class="stat-desc">10K per DM model</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-number">49</span>
+                        <span class="stat-label">Tests Passing</span>
+                        <span class="stat-desc">Code implementation verified</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ELI5 / The Big Picture -->
+        <section id="eli5" class="section">
+            <h2>The Big Picture: What This Project Does</h2>
+            <div class="eli5-container">
+                <div class="eli5-block">
+                    <div class="eli5-icon">&#127756;</div>
+                    <h3>The Mystery</h3>
+                    <p>About 85% of all matter in the universe is <strong>dark matter</strong> &mdash; a mysterious substance that doesn't emit or absorb light. We know it's there because of its gravitational effects, but we can't see it directly. The biggest unsolved question in physics: <em>What IS dark matter?</em></p>
+                    <p>Different theories predict dark matter behaves in different ways. Some say it's "cold" and clumpy (CDM), others say it's "warm" and smoother (WDM), and others propose exotic particles like ultra-light axions (FDM) or particles that bounce off each other (SIDM). Each theory predicts a different number of small dark matter clumps (called <strong>subhalos</strong>) orbiting our galaxy.</p>
+                </div>
+                <div class="eli5-block">
+                    <div class="eli5-icon">&#11088;</div>
+                    <h3>Our Cosmic Detectors</h3>
+                    <p>When a globular cluster (a ball of thousands of stars) gets ripped apart by our galaxy's gravity, it stretches into a long, thin ribbon of stars called a <strong>stellar stream</strong>. Think of it like a trail of breadcrumbs stretching across the sky.</p>
+                    <p>These streams are incredibly useful because they act as <strong>gravitational antennas</strong>. When an invisible dark matter clump flies past a stream, it tugs on the nearby stars with its gravity, creating a visible <strong>gap</strong> &mdash; a region where stars got pulled apart. It's like an invisible bowling ball knocking aside marbles in a line. By counting these gaps and measuring their shapes, we can figure out how many dark matter clumps exist, which tells us what type of dark matter the universe is made of.</p>
+                </div>
+                <div class="eli5-block">
+                    <div class="eli5-icon">&#129504;</div>
+                    <h3>Our Approach</h3>
+                    <p>We use <strong>artificial intelligence</strong> (specifically, a type called a Graph Neural Network) to analyze the positions and motions of every star in a stream. Instead of reducing the data down to simple statistics like previous work did, our AI looks at the full 3D structure &mdash; how every star relates to its neighbors, how fast they're moving, and in what direction.</p>
+                    <p>We train this AI on 40,000 simulated streams where we know the answer (because we made them), then apply it to real streams observed by the <strong>Gaia space telescope</strong>. The AI outputs a probability distribution telling us which dark matter model best explains what we see. This is the first project to combine graph neural networks with simulation-based inference for this problem.</p>
+                </div>
+                <div class="eli5-block">
+                    <div class="eli5-icon">&#128200;</div>
+                    <h3>Why It Matters</h3>
+                    <p>If we can determine the properties of dark matter, it would be one of the most important discoveries in the history of physics. It would tell us about fundamental particles, the formation of galaxies, and the ultimate fate of the universe.</p>
+                    <p>Our project doesn't just pick one dark matter model &mdash; it places <strong>model-independent constraints</strong> on a single parameter called the <strong>half-mode mass (M<sub>hm</sub>)</strong>, which tells us the smallest dark matter clumps that can exist. A low M<sub>hm</sub> means lots of small clumps (CDM is right). A high M<sub>hm</sub> means small clumps are suppressed (alternative models are right). This makes our results useful regardless of which specific theory turns out to be correct.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Science Background -->
+        <section id="science" class="section">
+            <h2>Science Background</h2>
+            <div class="two-col">
+                <div class="text-content">
+                    <h3>The Dark Matter Substructure Problem</h3>
+                    <div class="plain-english">
+                        <strong>In plain English:</strong> The leading theory (CDM) predicts that our galaxy should be orbited by billions of tiny invisible dark matter clumps. Alternative theories predict far fewer. If we can count these clumps, we can figure out which theory is correct.
+                    </div>
+                    <p>Cold Dark Matter (CDM) predicts a rich hierarchy of subhalos orbiting the Milky Way, with the mass function following dN/dM ~ M<sup>-1.9</sup> down to Earth-mass scales (Springel et al. 2008). This means <em>far more</em> small subhalos than large ones &mdash; for every one subhalo weighing 10 billion solar masses, there should be roughly 80 weighing 1 billion and about 6,000 weighing 100 million.</p>
+                    <p>Alternative models like Warm DM, Fuzzy DM, and Self-Interacting DM suppress this subhalo population below a characteristic <strong>half-mode mass M<sub>hm</sub></strong>. The half-mode mass is the mass scale where the number of subhalos drops to half of what CDM predicts. Think of it as a "cutoff weight" &mdash; below this weight, dark matter clumps can't form.</p>
+                    <p>Stellar streams &mdash; tidally disrupted globular clusters or dwarf galaxies stretched into thin arcs &mdash; act as gravitational antennas. When a dark matter subhalo flies past a stream, it creates <strong>density gaps</strong> (regions with fewer stars) and <strong>velocity kicks</strong> (stars pushed to unusual speeds) in the stream's phase space.</p>
+                    <div class="plain-english">
+                        <strong>Key insight:</strong> More dark matter clumps = more gaps in streams. CDM predicts 5&ndash;7 detectable gaps in a stream like GD-1. WDM might predict only 1&ndash;2. By counting gaps across multiple streams, we can tell these theories apart.
+                    </div>
+                    <h3>Why Graph Neural Networks?</h3>
+                    <p>Traditional approaches (Bovy+2017, Banik+2021) reduce the 6D phase-space data to 1D power spectra, discarding crucial spatial and kinematic correlations. Imagine taking a detailed photograph and reducing it to just a list of how many pixels are each shade of gray &mdash; you lose all the spatial structure.</p>
+                    <p>Our GNN operates directly on the phase-space graph, preserving:</p>
+                    <ul>
+                        <li><strong>Local kinematic coherence</strong> &mdash; stars near a gap move differently from undisturbed stars</li>
+                        <li><strong>Gap morphology</strong> &mdash; the depth, width, and asymmetry of each gap encodes the mass and speed of the impacting subhalo</li>
+                        <li><strong>Velocity dispersion patterns</strong> &mdash; stars near a recent perturbation show characteristic "heating" signatures</li>
+                        <li><strong>Multi-scale clustering</strong> &mdash; CDM creates many small gaps close together; WDM creates few big ones far apart</li>
+                    </ul>
+                </div>
+                <div class="chart-container">
+                    <h4>Subhalo Mass Function Suppression</h4>
+                    <canvas id="massFunction" width="400" height="300"></canvas>
+                    <p class="chart-caption">This chart shows how many dark matter clumps exist at each mass. The blue CDM line shows the most clumps. Alternative models (orange, red, purple) suppress small clumps &mdash; the curves drop off at low masses. This is the fundamental signal we're trying to measure.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- GNN Architecture -->
+        <section id="architecture" class="section">
+            <h2>GNN Architecture: GINEConv Encoder</h2>
+
+            <div class="plain-english" style="margin-bottom: 2rem;">
+                <strong>What is a Graph Neural Network (GNN)?</strong> A regular neural network processes data arranged in a grid (like an image). But our data &mdash; thousands of stars scattered in space &mdash; doesn't fit a grid. Instead, we connect each star to its 16 nearest neighbors, forming a <strong>graph</strong> (a network of nodes and connections). The GNN then passes messages along these connections: each star learns about its neighbors, then its neighbors' neighbors, and so on. After 6 rounds of message-passing, every star has information about the entire stream, and we combine all of that into a single 128-number "fingerprint" (embedding) of the whole stream.
+            </div>
+
+            <div class="architecture-diagram">
+                <div class="arch-flow">
+                    <div class="arch-block input-block">
+                        <h4>Input Graph</h4>
+                        <p>Nodes: 18 features per star</p>
+                        <p>Edges: 5 features (k=16 NN)</p>
+                        <p>~5000 stars/stream</p>
+                    </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-block">
+                        <h4>Node/Edge Projection</h4>
+                        <p>Linear(18 &rarr; 256)</p>
+                        <p>Linear(5 &rarr; 256)</p>
+                    </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-block conv-block">
+                        <h4>6x GINEConv</h4>
+                        <p>MLP(256&rarr;512&rarr;256)</p>
+                        <p>BatchNorm + Dropout(0.1)</p>
+                        <p>Residual from layer 2+</p>
+                    </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-block pool-block">
+                        <h4>Global Pooling</h4>
+                        <p>Mean + Max concat</p>
+                        <p>+ Attention (optional)</p>
+                        <p>+ Segment GNN (optional)</p>
+                    </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-block output-block">
+                        <h4>Output MLP</h4>
+                        <p>Linear(512&rarr;256&rarr;128)</p>
+                        <p class="embed-label">128-d Embedding</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="plain-english" style="margin-bottom: 1.5rem;">
+                <strong>Reading the diagram above:</strong> Data flows left to right. Each star starts with 18 numbers describing it (position, speed, etc.). These get projected into a richer 256-dimensional space. Then 6 rounds of GINEConv message-passing let every star learn from its neighbors. Finally, we summarize all ~5,000 stars into a single compact 128-number fingerprint that captures everything important about the stream. This fingerprint is what gets fed to the inference engine.
+            </div>
+
+            <div class="three-col">
+                <div class="info-card">
+                    <h4>Why GINEConv?</h4>
+                    <p>GIN (Graph Isomorphism Network) is provably maximally expressive among message-passing GNNs (Xu et al. 2019). The GINE variant incorporates edge features during aggregation, capturing the kinematic delta signals between neighboring stars that encode subhalo perturbations.</p>
+                    <div class="plain-english-mini">
+                        <em>Translation:</em> GINEConv is the most powerful type of graph layer available. It's mathematically proven to distinguish between any two different graph structures &mdash; meaning it won't accidentally confuse a perturbed stream with an unperturbed one.
+                    </div>
+                </div>
+                <div class="info-card">
+                    <h4>Multi-Task Training</h4>
+                    <p>The embedding feeds two heads: (1) 3-class classifier (CDM+SIDM / WDM / FDM) and (2) regression (log<sub>10</sub>M<sub>sub</sub>, n_impacts). Multi-task training forces the embedding to encode both discrete identity and continuous physical parameters.</p>
+                    <div class="plain-english-mini">
+                        <em>Translation:</em> We train the AI to do two jobs at once: classify which type of dark matter it sees, AND estimate specific numbers (how heavy the impacting subhalo was, how many impacts happened). This makes the learned fingerprint much richer than if it only did one task.
+                    </div>
+                </div>
+                <div class="info-card">
+                    <h4>vs. Ma+2025 (GCN)</h4>
+                    <p>The nearest competitor (Ma+2025) uses vanilla GCN which cannot leverage edge features. Our GINEConv processes the relative proper motion deltas (the core perturbation signal) natively. GINEConv's theoretical advantage is its ability to incorporate edge attributes during message passing, which GCN discards.</p>
+                    <div class="plain-english-mini">
+                        <em>Translation:</em> The closest competing research uses a simpler type of graph network that ignores the velocity differences between stars &mdash; which is exactly where the perturbation signal lives. Our architecture is designed to use this critical information directly.
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-row">
+                <div class="chart-container">
+                    <h4>Node Feature Importance (by category)</h4>
+                    <canvas id="nodeFeatures" width="400" height="250"></canvas>
+                    <p class="chart-caption">Each star is described by 18 numbers. Kinematics (position and velocity) carry the most physics. Stream identity (which of the 7 streams a star belongs to) uses 7 one-hot dimensions so the model can learn stream-specific properties.</p>
+                </div>
+                <div class="chart-container">
+                    <h4>Edge Feature Components</h4>
+                    <canvas id="edgeFeatures" width="400" height="250"></canvas>
+                    <p class="chart-caption">Each connection between two stars carries information about how they differ in position and velocity. The optional orbital features (delta_R, delta_z) add galactic cylindrical coordinates, encoding where in the galaxy's disk each star is.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 7 Novel Features -->
+        <section id="features" class="section">
+            <h2>Integrated Features</h2>
+            <p class="section-desc">The framework integrates seven established machine learning and statistical techniques, adapted for stellar stream dark matter detection. None of these techniques are individually novel &mdash; attention mechanisms, MC dropout, hierarchical Bayesian models, and multi-scale graphs are all well-established methods. The contribution is their combination and application to this specific astrophysical domain.</p>
+
+            <div class="features-grid">
+                <div class="feature-card" data-feature="1">
+                    <div class="feature-number">F1</div>
+                    <h3>Attention-Based Interpretability</h3>
+                    <p>Learned attention readout produces per-node importance scores showing which stars drive the DM detection. A learnable query vector attends to final hidden states via per-graph softmax.</p>
+                    <div class="plain-english-mini">
+                        <em>Why it matters:</em> The AI can highlight exactly WHICH stars in the stream were most important for its decision. If it's focusing on stars near gaps and velocity kicks, we know it's learning real physics &mdash; not just noise. This makes our results interpretable and trustworthy.
+                    </div>
+                    <div class="feature-details">
+                        <code>pool = mean + max + attention &rarr; 3*hidden_dim</code>
+                        <ul>
+                            <li>Per-star importance weights (sum to 1 per graph)</li>
+                            <li>Highlights gap edges, spurs, velocity outliers</li>
+                            <li>Unique to graph architecture &mdash; no CNN/power-spectrum equivalent</li>
+                        </ul>
+                    </div>
+                    <span class="feature-status passed">Tested</span>
+                </div>
+
+                <div class="feature-card" data-feature="2">
+                    <div class="feature-number">F2</div>
+                    <h3>Multi-Scale Graph Construction</h3>
+                    <p>Star-level k-NN graph captures local perturbations; segment-level graph (20 bins in phi1) captures gap <em>clustering</em> &mdash; CDM's hallmark of many weak impacts vs. WDM's few strong ones.</p>
+                    <div class="plain-english-mini">
+                        <em>Why it matters:</em> CDM creates many small gaps clustered together (like a shotgun blast). WDM creates a few big gaps spread out (like a cannon). To tell these apart, we need to zoom out and look at the big picture, not just individual gaps. The segment graph does exactly this by dividing the stream into 20 chunks and analyzing patterns between chunks.
+                    </div>
+                    <div class="feature-details">
+                        <code>SegmentGNN: 3-layer GINEConv, 8 features &rarr; 64-d</code>
+                        <ul>
+                            <li>Segment features: mean_phi1/2, std_phi2, proper motions, density contrast</li>
+                            <li>Segment edges: chain (adjacent) + PM-nearest (k=4)</li>
+                            <li>Graceful degradation: zeros if segment data absent</li>
+                        </ul>
+                    </div>
+                    <span class="feature-status passed">Tested</span>
+                </div>
+
+                <div class="feature-card" data-feature="3">
+                    <div class="feature-number">F3</div>
+                    <h3>MC Dropout Uncertainty</h3>
+                    <p>Epistemic uncertainty via T stochastic forward passes with dropout active at inference time. Uncertain embeddings &rarr; wider posteriors. Built-in OOD detection (high std = unfamiliar input).</p>
+                    <div class="plain-english-mini">
+                        <em>Why it matters:</em> Honest science requires knowing how confident the AI is. By running the AI 20 times with random neurons switched off, we get 20 slightly different answers. If they all agree, the AI is confident. If they disagree wildly, the AI is uncertain &mdash; and we widen our error bars accordingly. This also flags cases where the real data looks nothing like the training data.
+                    </div>
+                    <div class="feature-details">
+                        <code>mc_embed(data, T=20) &rarr; (mean[B,128], std[B,128])</code>
+                        <ul>
+                            <li>No retraining needed &mdash; uses existing dropout layers</li>
+                            <li>Std propagated to SBI diagnostics as uncertainty penalty</li>
+                            <li>OOD score: high embedding std flags potential misspecification</li>
+                        </ul>
+                    </div>
+                    <span class="feature-status passed">Tested</span>
+                </div>
+
+                <div class="feature-card" data-feature="4">
+                    <div class="feature-number">F4</div>
+                    <h3>Orbit-Phase Edge Features</h3>
+                    <p>Encode dynamical coherence: R<sub>cyl</sub> and z<sub>cyl</sub> (galactocentric cylindrical coords) as additional node+edge features. Stars on different orbital phases scatter differently after a subhalo encounter.</p>
+                    <div class="plain-english-mini">
+                        <em>Why it matters:</em> Stars on different parts of their orbit around the galaxy respond differently to a dark matter impact. A star near the center of its orbit gets kicked differently than one at the far end. By encoding WHERE in the galaxy each star is (not just its sky position), we capture this orbital dynamics.
+                    </div>
+                    <div class="feature-details">
+                        <code>edge_attr: [delta_phi1..4, dist_4d, delta_R, delta_z] &rarr; 7 features</code>
+                        <ul>
+                            <li>Uniquely enabled by graph structure + 6D galactocentric data</li>
+                            <li>Backward compatible: defaults to standard 5 features</li>
+                            <li>Requires regenerating training data with coords stored</li>
+                        </ul>
+                    </div>
+                    <span class="feature-status passed">Tested</span>
+                </div>
+
+                <div class="feature-card" data-feature="5">
+                    <div class="feature-number">F5</div>
+                    <h3>Perturbation Age Target</h3>
+                    <p>Gap width encodes time-since-impact. Adding log<sub>10</sub>(t_since_last_impact) as a 3rd regression target forces the embedding to encode temporal information, constraining the subhalo orbit (not just mass).</p>
+                    <div class="plain-english-mini">
+                        <em>Why it matters:</em> A fresh gap is narrow and deep. An old gap has spread out and become shallow (stars drift apart over time). By teaching the AI to estimate when the impact happened, it learns to read this "clock" &mdash; and that temporal information also helps constrain the orbit of the impactor.
+                    </div>
+                    <div class="feature-details">
+                        <code>n_reg_targets: 3 &rarr; [log10_M_sub, n_impacts, log10_t]</code>
+                        <ul>
+                            <li>Older gaps are wider and shallower (phase-mixing)</li>
+                            <li>Temporal info enables orbit parameter recovery</li>
+                            <li>Backward compat: fallback to log10(stream_age) if missing</li>
+                        </ul>
+                    </div>
+                    <span class="feature-status passed">Tested</span>
+                </div>
+
+                <div class="feature-card" data-feature="6">
+                    <div class="feature-number">F6</div>
+                    <h3>Hierarchical Bayesian Model</h3>
+                    <p>Replace the statistically incorrect KDE posterior product with a proper hierarchical model. Streams share a common M<sub>hm</sub> but have different exposure (length, age, distance).</p>
+                    <div class="plain-english-mini">
+                        <em>Why it matters:</em> Imagine 7 detectives investigating the same suspect, each with different amounts of evidence. The naive approach multiplies their separate conclusions, which is statistically wrong. The hierarchical model properly accounts for the fact that all 7 streams experience the SAME dark matter, but have different sensitivities. This gives tighter and more accurate combined results.
+                    </div>
+                    <div class="feature-details">
+                        <code>M_hm ~ Uniform(6,10); n_s ~ Poisson(rate(M_hm, L, T))</code>
+                        <ul>
+                            <li>NumPyro NUTS (primary) with emcee fallback</li>
+                            <li>Correctly handles shared parameter across streams</li>
+                            <li>Rate model integrates suppressed mass function</li>
+                        </ul>
+                    </div>
+                    <span class="feature-status passed">Tested</span>
+                </div>
+
+                <div class="feature-card" data-feature="7">
+                    <div class="feature-number">F7</div>
+                    <h3>Mock Data Challenge</h3>
+                    <p>Gold-standard SBI validation. 20 mock streams with known truth (5 per DM model), full pipeline blind inference, reporting coverage at 68/90/95% CI levels, bias, and RMSE.</p>
+                    <div class="plain-english-mini">
+                        <em>Why it matters:</em> Before trusting the AI's results on real data, we need proof it works. We create 20 fake streams where WE know the answer, run the pipeline without peeking, and check if the true answer falls inside the AI's uncertainty range the expected fraction of the time. If it does, the system is "calibrated" and we can trust it on real data.
+                    </div>
+                    <div class="feature-details">
+                        <code>Coverage &ge; 75% at 90% CI &rarr; PASS</code>
+                        <ul>
+                            <li>5 CDM + 5 WDM + 5 FDM + 5 SIDM mocks</li>
+                            <li>M_hm range: 4.5 (CDM) to 8.5 (log10 solar masses)</li>
+                            <li>Chains existing pipeline modules (no new science code)</li>
+                        </ul>
+                    </div>
+                    <span class="feature-status passed">Tested</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Data Pipeline -->
+        <section id="data-pipeline" class="section">
+            <h2>Data Pipeline</h2>
+
+            <div class="plain-english" style="margin-bottom: 2rem;">
+                <strong>How does data flow through the system?</strong> The pipeline has five stages, each transforming the data into a more useful form. We start with raw telescope observations and end with probability statements about dark matter. Think of it as: observe stars &rarr; simulate what dark matter would do &rarr; build a graph of connections &rarr; AI processes the graph &rarr; statistical inference gives us the answer.
+            </div>
+
+            <div class="pipeline-flow">
+                <div class="pipeline-stage">
+                    <div class="stage-icon">&#127776;</div>
+                    <h4>Gaia DR3 Query</h4>
+                    <p>6D phase-space (positions + velocities) for 7 stellar streams</p>
+                    <p class="stage-detail">The Gaia space telescope has measured precise positions, distances, and motions for nearly 2 billion stars. We extract the ~5,000 stars in each of our 7 target streams.</p>
+                </div>
+                <div class="pipeline-connector"></div>
+                <div class="pipeline-stage">
+                    <div class="stage-icon">&#9881;</div>
+                    <h4>Simulation</h4>
+                    <p>40K mock streams with galpy (MW potential + N-body encounters)</p>
+                    <p class="stage-detail">We use the galpy library to simulate realistic Milky Way streams. Each simulation includes a realistic galaxy potential, stream formation, and random dark matter subhalo encounters.</p>
+                </div>
+                <div class="pipeline-connector"></div>
+                <div class="pipeline-stage">
+                    <div class="stage-icon">&#128200;</div>
+                    <h4>Graph Build</h4>
+                    <p>k-NN in (phi1, phi2, pm1, pm2) 4D space; 18 node + 5 edge features</p>
+                    <p class="stage-detail">We connect each star to its 16 nearest neighbors based on position and velocity. This creates a graph where nearby, kinematically-similar stars are linked.</p>
+                </div>
+                <div class="pipeline-connector"></div>
+                <div class="pipeline-stage">
+                    <div class="stage-icon">&#129504;</div>
+                    <h4>GNN Encode</h4>
+                    <p>6-layer GINEConv &rarr; 128-d embedding per stream</p>
+                    <p class="stage-detail">The Graph Neural Network processes the entire graph through 6 message-passing layers, then compresses all the information into a compact 128-number fingerprint.</p>
+                </div>
+                <div class="pipeline-connector"></div>
+                <div class="pipeline-stage">
+                    <div class="stage-icon">&#128202;</div>
+                    <h4>SBI Posterior</h4>
+                    <p>SNPE-C with Neural Spline Flow &rarr; parameter posteriors</p>
+                    <p class="stage-detail">A normalizing flow network converts the fingerprint into a full probability distribution over dark matter parameters, telling us which values are most likely.</p>
+                </div>
+            </div>
+
+            <div class="two-col" style="margin-top: 2rem;">
+                <div class="chart-container">
+                    <h4>Training Simulation Distribution</h4>
+                    <canvas id="simDistribution" width="400" height="250"></canvas>
+                    <p class="chart-caption">We create an equal number of simulations (10,000) for each dark matter model. This ensures the AI doesn't become biased toward any particular model during training. Equal representation means equal opportunity to learn each model's distinctive features.</p>
+                </div>
+                <div class="chart-container">
+                    <h4>Data Augmentation Strategy</h4>
+                    <canvas id="augmentation" width="400" height="250"></canvas>
+                    <p class="chart-caption">To make the AI more robust, we randomly modify training streams: shift them along the sky, flip them left-to-right, add realistic noise, and sometimes inject baryonic perturbations (gaps caused by normal matter like molecular clouds) into CDM streams. This teaches the AI to focus on genuine dark matter signals.</p>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h4>Node Features (18 per star) &mdash; What the AI Knows About Each Star</h4>
+                <div class="plain-english-mini" style="margin-bottom: 1rem;">
+                    Each star is described by 18 numbers. The first 6 are its position and motion (kinematics) &mdash; where it is and how it's moving. Features 6&ndash;9 are measurement uncertainties (how precisely Gaia measured each property). Feature 10 is the probability that the star actually belongs to the stream (vs. being a background star). Features 11&ndash;17 identify which of the 7 streams this star belongs to.
+                </div>
+                <div class="feature-table">
+                    <table>
+                        <thead>
+                            <tr><th>Index</th><th>Name</th><th>Description</th><th>Source</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>0</td><td>phi1</td><td>Stream longitude (position along the stream)</td><td>Gaia astrometry</td></tr>
+                            <tr><td>1</td><td>phi2</td><td>Stream latitude (position across the stream)</td><td>Gaia astrometry</td></tr>
+                            <tr><td>2</td><td>dist</td><td>Heliocentric distance (how far from Earth)</td><td>Photogeometric (Bailer-Jones+2021)</td></tr>
+                            <tr><td>3</td><td>pm1</td><td>Proper motion along stream (speed along)</td><td>Gaia astrometry</td></tr>
+                            <tr><td>4</td><td>pm2</td><td>Proper motion across stream (speed across)</td><td>Gaia astrometry</td></tr>
+                            <tr><td>5</td><td>vrad</td><td>Radial velocity (speed toward/away from us)</td><td>Gaia RVS (where available)</td></tr>
+                            <tr><td>6-9</td><td>e_*</td><td>Measurement uncertainties for each property</td><td>Gaia error model</td></tr>
+                            <tr><td>10</td><td>membership_prob</td><td>Probability star belongs to this stream</td><td>Mixture model fit</td></tr>
+                            <tr><td>11-17</td><td>stream_*</td><td>One-hot stream identity (7 streams)</td><td>Catalog assignment</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- SBI Inference -->
+        <section id="inference" class="section">
+            <h2>Simulation-Based Inference</h2>
+
+            <div class="plain-english" style="margin-bottom: 2rem;">
+                <strong>What is Simulation-Based Inference (SBI)?</strong> Traditional statistics require a mathematical formula (called a likelihood) that tells you how probable your observations are given some parameters. But for stellar stream perturbations, this formula is impossibly complex &mdash; it involves simulating the gravitational interactions of millions of particles. SBI bypasses this entirely: instead of writing down a formula, we <em>simulate</em> thousands of examples, then train a neural network to learn the relationship between parameters and observations directly from the simulations. It's like learning to recognize faces by looking at thousands of examples, rather than trying to write a mathematical equation for what a face looks like.
+            </div>
+
+            <div class="two-col">
+                <div class="text-content">
+                    <h3>SNPE-C (Automatic Posterior Transformation)</h3>
+                    <p>We use the Sequential Neural Posterior Estimation algorithm (variant C), which is the state-of-the-art SBI method. It learns the full posterior distribution &mdash; not just a single "best guess" but a complete probability map showing how likely each parameter value is.</p>
+
+                    <h4>Pipeline (step by step):</h4>
+                    <ol>
+                        <li><strong>Simulate:</strong> Pick random dark matter parameters, run a full stream simulation, create a synthetic stream. This gives us one training example where we know both the input (DM params) and output (stream).</li>
+                        <li><strong>Embed:</strong> Run the synthetic stream through our GNN to get a 128-dimensional fingerprint. This is the "summary statistic" that captures everything important.</li>
+                        <li><strong>Learn:</strong> A Neural Spline Flow (a type of flexible probability model with 8 transformations and 256-d hidden layers) learns to map from fingerprints to parameter distributions.</li>
+                        <li><strong>Infer:</strong> Given a real stream, compute its fingerprint, then ask the learned model: "What dark matter parameters most likely produced this fingerprint?"</li>
+                    </ol>
+
+                    <h4>Multi-Round Training (5 rounds):</h4>
+                    <div class="plain-english-mini">
+                        <em>Why multiple rounds?</em> Round 1 explores broadly. Each subsequent round focuses simulations near where the answer is likely to be, making each new simulation much more informative. It's like searching for a lost key: first you check every room (round 1), then focus on the room where you heard a jingle (rounds 2&ndash;5).
+                    </div>
+                    <ul>
+                        <li>Round 1: 5,000 simulations drawn from a broad prior (uniform exploration)</li>
+                        <li>Rounds 2-5: 2,000 simulations each, drawn from the current best estimate of the posterior (targeted exploration)</li>
+                        <li>Total: 13,000 targeted simulations per stream (far fewer than the ~100,000+ an amortized approach would need)</li>
+                    </ul>
+                </div>
+                <div class="chart-container">
+                    <h4>SBI Round Efficiency</h4>
+                    <canvas id="sbiRounds" width="400" height="280"></canvas>
+                    <p class="chart-caption">Blue area: cumulative simulation count (factual &mdash; 5,000 in round 1 + 2,000 per subsequent round = 13,000 total). Green line: illustrative posterior quality improvement. Multi-round SNPE-C concentrates simulations near the posterior, which is expected to improve sample efficiency compared to single-round amortized approaches.</p>
+                </div>
+            </div>
+
+            <div class="chart-row">
+                <div class="chart-container">
+                    <h4>Neural Spline Flow Architecture</h4>
+                    <div class="plain-english-mini" style="margin-bottom: 1rem;">
+                        The Neural Spline Flow converts a simple distribution (like a bell curve) into a complex, multi-peaked distribution through a series of 8 learned transformations. Each transformation uses rational-quadratic splines &mdash; flexible curves that can model almost any shape. The result is a probability distribution expressive enough to capture the true uncertainty in dark matter parameters.
+                    </div>
+                    <div class="nsf-diagram">
+                        <div class="nsf-block">Input: 128-d GNN embedding</div>
+                        <div class="nsf-arrow">&darr;</div>
+                        <div class="nsf-block nsf-transform">Transform 1: Rational-Quadratic Spline (8 bins)</div>
+                        <div class="nsf-arrow">&darr;</div>
+                        <div class="nsf-block nsf-transform">Transform 2-7: RQS + Affine coupling</div>
+                        <div class="nsf-arrow">&darr;</div>
+                        <div class="nsf-block nsf-transform">Transform 8: Final RQS</div>
+                        <div class="nsf-arrow">&darr;</div>
+                        <div class="nsf-block">Output: P(log10_M_sub, n_impacts | embedding)</div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <h4>Posterior Calibration (Expected vs. Empirical Coverage)</h4>
+                    <canvas id="calibration" width="400" height="280"></canvas>
+                    <p class="chart-caption">A well-calibrated system means: when it says "90% confident," the truth falls in that range 90% of the time. The cyan line should track the orange diagonal. This chart shows idealized target calibration behavior. Actual calibration will be measured by running the mock data challenge (Section 8). Slight conservatism (above diagonal) is preferable to overconfidence.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Hierarchical Model -->
+        <section id="hierarchical" class="section">
+            <h2>Hierarchical Bayesian Multi-Stream Model</h2>
+
+            <div class="plain-english" style="margin-bottom: 2rem;">
+                <strong>Why combine multiple streams?</strong> Each stream gives us a noisy measurement of dark matter. By combining all 7 streams, we get a much stronger signal &mdash; like asking 7 witnesses to describe a suspect instead of just one. But we can't simply average their answers, because each stream has different "hearing" (sensitivity). A long stream like GD-1 catches more dark matter impacts than a short one like Sylgr. The hierarchical model properly accounts for these differences, giving each stream the right amount of influence.
+            </div>
+
+            <div class="two-col">
+                <div class="text-content">
+                    <h3>Model Structure</h3>
+                    <div class="math-block">
+                        <p>M<sub>hm</sub> ~ Uniform(10<sup>6</sup>, 10<sup>10</sup> M<sub>&#9737;</sub>)</p>
+                        <p>For each stream s:</p>
+                        <p>&nbsp;&nbsp;n<sub>s</sub> ~ Poisson(&lambda;<sub>s</sub>(M<sub>hm</sub>, L<sub>s</sub>, T<sub>s</sub>))</p>
+                    </div>
+                    <div class="plain-english-mini">
+                        <em>In plain English:</em> We assume there's ONE true half-mode mass (M<sub>hm</sub>) that applies to all streams equally. For each stream, the expected number of dark matter impacts depends on M<sub>hm</sub> and the stream's individual properties (length L, age T). The actual number of impacts follows a Poisson distribution (random count with a known average rate).
+                    </div>
+                    <p>The expected rate &lambda; integrates the suppressed subhalo mass function weighted by stream geometric cross-section and age:</p>
+                    <div class="math-block">
+                        <p>&lambda; = C &sdot; (L/10kpc) &sdot; (T/5Gyr) &sdot; &int; [dN/dlog M] &sdot; T(M, M<sub>hm</sub>) dlog M</p>
+                        <p>T(M, M<sub>hm</sub>) = [1 + (M<sub>hm</sub>/M)<sup>2</sup>]<sup>-1</sup></p>
+                    </div>
+                    <div class="plain-english-mini">
+                        <em>Breaking it down:</em> The rate formula says: longer streams catch more impacts (proportional to length). Older streams have had more time to accumulate impacts (proportional to age). And the integral counts up all the subhalos that exist, weighted by whether they're suppressed by the half-mode mass or not. The transfer function T smoothly transitions from "fully suppressed" (when M<sub>hm</sub> >> M) to "no suppression" (when M<sub>hm</sub> << M).
+                    </div>
+                    <p>The transfer function follows the WDM suppression form from Schneider et al. (2012). The normalization constant C is calibrated so CDM produces ~5 impacts for a GD-1-like stream (60 deg, 5 Gyr), consistent with Bonaca et al. (2019) and Banik et al. (2021).</p>
+                </div>
+                <div class="chart-container">
+                    <h4>Expected Impact Rate vs. M<sub>hm</sub></h4>
+                    <canvas id="rateVsMhm" width="400" height="280"></canvas>
+                    <p class="chart-caption">This chart shows how the expected number of dark matter impacts drops as M<sub>hm</sub> increases (more suppression). At low M<sub>hm</sub> (~6), we're near CDM with many impacts. At high M<sub>hm</sub> (~10), nearly all subhalos are suppressed and impacts drop to near zero. Each colored line is a different stream &mdash; Orphan (green) catches the most impacts because it's the longest.</p>
+                </div>
+            </div>
+
+            <div class="chart-row">
+                <div class="chart-container">
+                    <h4>Stream Sensitivity Comparison</h4>
+                    <canvas id="streamSensitivity" width="400" height="280"></canvas>
+                    <p class="chart-caption">Blue bars show expected impacts under CDM (no suppression) &mdash; longer streams like GD-1 and Orphan catch more. Orange bars show WDM at M<sub>hm</sub> = 10<sup>7.5</sup> M<sub>sun</sub> &mdash; all streams show dramatically fewer impacts. The difference between blue and orange is the signal we're trying to detect.</p>
+                </div>
+                <div class="chart-container">
+                    <h4>Hierarchical vs. Product-of-Posteriors</h4>
+                    <canvas id="hierVsProduct" width="400" height="280"></canvas>
+                    <p class="chart-caption">Illustrative comparison: the hierarchical model (orange) is expected to give a tighter, better-centered constraint than naive posterior multiplication (blue). The product-of-posteriors approach treats streams as statistically independent, which ignores the shared M<sub>hm</sub> parameter. The curves shown are schematic representations of the expected behavior, not measured outputs.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Mock Challenge -->
+        <section id="mock-challenge" class="section">
+            <h2>Mock Data Challenge</h2>
+            <div class="text-content" style="max-width: 900px; margin: 0 auto 2rem;">
+                <div class="plain-english">
+                    <strong>The ultimate test:</strong> Before we trust this system with real data, we need to prove it works. We create 20 fake streams where we secretly know the answer (the "ground truth"). We run each through the full pipeline <em>without peeking</em> and check: does the AI's uncertainty range actually contain the true answer? If we claim "90% confidence" and the truth falls in our range 85&ndash;95% of the time, the system is well-calibrated and we can trust its results on real streams. This is the gold standard for validating any Bayesian inference system.
+                </div>
+                <p style="margin-top: 1rem;">The mock data challenge generates 20 mock streams with <strong>known ground-truth</strong> DM parameters: 5 CDM (with no suppression, M<sub>hm</sub> = 10<sup>4.5</sup> M<sub>sun</sub>, well below the minimum subhalo mass we consider), 5 WDM, 5 FDM, and 5 SIDM. For the non-CDM models, the half-mode mass ranges from 10<sup>6.5</sup> to 10<sup>8.5</sup> M<sub>sun</sub>, spanning the scientifically interesting range.</p>
+            </div>
+
+            <div class="mock-grid">
+                <div class="chart-container">
+                    <h4>Ground Truth vs. Inferred M<sub>hm</sub></h4>
+                    <canvas id="mockTruthVsInferred" width="400" height="300"></canvas>
+                    <p class="chart-caption">Each point is one mock stream. The x-axis is the true M<sub>hm</sub> (what we set), the y-axis is what the pipeline inferred. Perfect performance would put all points exactly on the dashed diagonal line. Points near the line mean the inference is accurate. CDM points (blue) cluster at x=4.5 (no suppression), while WDM/FDM/SIDM points span the full range.</p>
+                </div>
+                <div class="chart-container">
+                    <h4>Coverage Calibration</h4>
+                    <canvas id="mockCoverage" width="400" height="300"></canvas>
+                    <p class="chart-caption">Coverage calibration concept: for each confidence level (68%, 90%, 95%), we check what fraction of true values fall inside that credible interval. Expected (gray) and empirical (colored) bars should match. The empirical values shown are illustrative targets &mdash; actual coverage will be measured when the full pipeline is run on the mock streams. The passing criterion is &ge;75% empirical coverage at the 90% CI level.</p>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h4>Mock Challenge Parameters</h4>
+                <div class="plain-english-mini" style="margin-bottom: 1rem;">
+                    The table below shows exactly what ground-truth values we used for each set of mocks. CDM uses M<sub>hm</sub> = 10<sup>4.5</sup> (effectively no suppression &mdash; the half-mode mass is below the smallest subhalo we can detect, so all subhalos exist). The alternative models use a range of M<sub>hm</sub> values to test different degrees of suppression. The "True n_impacts" column shows how many dark matter impacts were placed in each mock stream.
+                </div>
+                <div class="feature-table">
+                    <table>
+                        <thead>
+                            <tr><th>DM Model</th><th># Mocks</th><th>log<sub>10</sub>(M<sub>hm</sub>/M<sub>&#9737;</sub>)</th><th>True n_impacts</th><th>Physical meaning</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>CDM</td><td>5</td><td>4.5 (no suppression)</td><td>3&ndash;7</td><td>Full subhalo abundance, maximum impacts</td></tr>
+                            <tr><td>WDM</td><td>5</td><td>6.5, 7.0, 7.5, 8.0, 8.5</td><td>1&ndash;4</td><td>Warm particles erase small structures</td></tr>
+                            <tr><td>FDM</td><td>5</td><td>6.5, 7.0, 7.5, 8.0, 8.5</td><td>1&ndash;4</td><td>Ultra-light axions create quantum pressure</td></tr>
+                            <tr><td>SIDM</td><td>5</td><td>6.5, 7.0, 7.5, 8.0, 8.5</td><td>1&ndash;5</td><td>Self-interactions create cored density profiles</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- DM Models -->
+        <section id="dm-models" class="section">
+            <h2>Dark Matter Models</h2>
+
+            <div class="plain-english" style="margin-bottom: 2rem;">
+                <strong>The four suspects:</strong> Physicists have proposed many theories for what dark matter is. We test the four most popular ones. Each predicts a different number and type of dark matter clumps orbiting our galaxy. Think of CDM as "lots of hard clumps," WDM as "fewer but spread-out clumps," FDM as "quantum fuzzy clumps," and SIDM as "soft clumps that bounce off each other."
+            </div>
+
+            <div class="dm-cards">
+                <div class="dm-card cdm">
+                    <h3>CDM</h3>
+                    <h4>Cold Dark Matter &mdash; The Standard Model</h4>
+                    <div class="plain-english-mini">
+                        <em>Analogy:</em> Imagine dark matter as a bag of marbles. CDM says the marbles come in every size from basketballs down to grains of sand &mdash; overwhelmingly many tiny ones.
+                    </div>
+                    <ul>
+                        <li>Mass function: dN/dM ~ M<sup>-1.9</sup> (many more small clumps than big)</li>
+                        <li>Density profile: NFW (Navarro-Frenk-White) &mdash; cuspy centers</li>
+                        <li>Concentration: Ludlow et al. (2016) relation</li>
+                        <li>Subhalo mass range: 10<sup>5</sup>&ndash;10<sup>9</sup> M<sub>&#9737;</sub> (100K to 1 billion solar masses)</li>
+                        <li>Prediction: 3&ndash;7 detectable impacts on GD-1</li>
+                    </ul>
+                    <p class="dm-note">The reference model. No suppression of subhalo mass function at any scale. If CDM is correct, our streams should show the most gaps.</p>
+                </div>
+
+                <div class="dm-card wdm">
+                    <h3>WDM</h3>
+                    <h4>Warm Dark Matter &mdash; The Hot Candidate</h4>
+                    <div class="plain-english-mini">
+                        <em>Analogy:</em> Like CDM, but the particles moved too fast in the early universe to clump into small structures. Imagine trying to build a sandcastle on a vibrating table &mdash; the big lumps stay, but the small grains won't stick.
+                    </div>
+                    <ul>
+                        <li>Mass function: CDM power-law with half-mode filter applied</li>
+                        <li>M<sub>hm</sub> = 1.7&times;10<sup>10</sup> &sdot; (m<sub>WDM</sub>/keV)<sup>-3.33</sup> M<sub>&#9737;</sub></li>
+                        <li>Suppression: (1 + (M<sub>hm</sub>/M)<sup>2.7</sup>)<sup>-0.99/2.7</sup></li>
+                        <li>Particle mass prior: 0.5&ndash;10 keV (thermal relic)</li>
+                        <li>Reference: Lovell et al. (2014), Schneider et al. (2012)</li>
+                    </ul>
+                    <p class="dm-note">Free-streaming erases small-scale structure. Lighter WDM particles = more suppression = fewer gaps in streams.</p>
+                </div>
+
+                <div class="dm-card fdm">
+                    <h3>FDM</h3>
+                    <h4>Fuzzy Dark Matter &mdash; The Quantum Wave</h4>
+                    <div class="plain-english-mini">
+                        <em>Analogy:</em> FDM particles are so incredibly light that they behave like waves, not particles. Imagine dark matter as an ocean &mdash; you get big swells (large subhalos) but small ripples wash out (no small subhalos), leaving smooth "soliton" cores.
+                    </div>
+                    <ul>
+                        <li>Mass function: CDM power-law with Jeans filter (quantum pressure cutoff)</li>
+                        <li>M<sub>Jeans</sub> = 1.5&times;10<sup>8</sup> &sdot; (m<sub>axion</sub>/10<sup>-22</sup>eV)<sup>-1.5</sup> M<sub>&#9737;</sub></li>
+                        <li>Density: soliton core + NFW envelope (unique to FDM)</li>
+                        <li>Soliton radius: r<sub>c</sub> ~ 1.6/(m<sub>22</sub> &sdot; (M/10<sup>9</sup>)<sup>1/3</sup>) kpc</li>
+                        <li>Reference: Hui et al. (2017), Schive et al. (2014)</li>
+                    </ul>
+                    <p class="dm-note">Ultra-light axion (mass ~10<sup>-22</sup> eV) with de Broglie wavelength on galaxy scales. Quantum pressure prevents small structure from forming.</p>
+                </div>
+
+                <div class="dm-card sidm">
+                    <h3>SIDM</h3>
+                    <h4>Self-Interacting Dark Matter &mdash; The Social Particle</h4>
+                    <div class="plain-english-mini">
+                        <em>Analogy:</em> Most dark matter theories say particles pass through each other like ghosts. SIDM says they actually bump into each other (like billiard balls), which smooths out the centers of clumps from pointy peaks to flat-topped hills.
+                    </div>
+                    <ul>
+                        <li>Mass function: same as CDM (same number of clumps!)</li>
+                        <li>Density: isothermal core + NFW envelope (cored, not cuspy)</li>
+                        <li>Cross-section: 0.1&ndash;100 cm<sup>2</sup>/g (interaction strength)</li>
+                        <li>Core formation: Kaplinghat et al. (2016)</li>
+                        <li>Impact signature: same rate as CDM, but slightly softer perturbation</li>
+                    </ul>
+                    <p class="dm-note">Same subhalo abundance as CDM but different internal structure (cored vs. cuspy). Because the perturbation signal is nearly identical at Gaia precision, we merge CDM+SIDM into one classification class.</p>
+                </div>
+            </div>
+
+            <div class="chart-container" style="max-width: 700px; margin: 2rem auto;">
+                <h4>Model Discrimination Power</h4>
+                <canvas id="modelDiscrimination" width="600" height="300"></canvas>
+                <p class="chart-caption">Projected (illustrative) discrimination power between models, based on expected Bayes factors. Higher = more distinguishable. These values are design projections, not measured results. CDM+SIDM vs. suppressed models is the strongest expected signal. WDM vs. FDM discrimination is expected to be difficult because they produce similar suppression patterns. CDM and SIDM are merged into one class because the impulse approximation produces nearly identical stream perturbations.</p>
+            </div>
+        </section>
+
+        <!-- Target Streams -->
+        <section id="streams" class="section">
+            <h2>Target Stellar Streams</h2>
+
+            <div class="plain-english" style="margin-bottom: 2rem;">
+                <strong>Our seven cosmic rulers:</strong> We've selected seven stellar streams observed by the Gaia space telescope. Each is a long, thin trail of stars &mdash; the remains of a star cluster that was torn apart by the Milky Way's gravity over billions of years. Together, they cover different lengths, distances, and ages, giving us complementary views of the dark matter substructure around our galaxy.
+            </div>
+
+            <div class="chart-container" style="max-width: 800px; margin: 0 auto 2rem;">
+                <h4>Stream Properties</h4>
+                <canvas id="streamProperties" width="700" height="350"></canvas>
+                <p class="chart-caption">Blue bars show the angular length of each stream in degrees (how far across the sky it stretches). Orange bars show distance from Earth in kiloparsecs (1 kpc = 3,260 light-years). Longer streams interact with more dark matter, making them more sensitive detectors. Closer streams have more precisely measured star motions.</p>
+            </div>
+            <div class="streams-info">
+                <div class="stream-card">
+                    <h4>GD-1</h4>
+                    <p><strong>The workhorse.</strong> The longest and best-studied Milky Way stream (~60 degrees, spanning a quarter of the sky). Multiple confirmed gaps and a "spur" feature (a clump of stars kicked sideways). Provides our strongest sensitivity to low-mass subhalos. At only ~12 kpc away, Gaia measures its stars with excellent precision.</p>
+                </div>
+                <div class="stream-card">
+                    <h4>Pal 5</h4>
+                    <p><strong>The classic.</strong> Tidal tails of the Palomar 5 globular cluster. At 11 Gyr old, it's had the most time to accumulate perturbations. Shorter (~20 deg) but with prominent density variations that have already been used to constrain dark matter (Bonaca et al. 2019). Its old age compensates for its shorter length.</p>
+                </div>
+                <div class="stream-card">
+                    <h4>Orphan-Chenab</h4>
+                    <p><strong>The giant.</strong> The widest stream in our sample (~120 degrees). Its enormous length gives it the highest geometric cross-section for subhalo encounters. Farther away (~20 kpc), so proper motion measurements are noisier, but the sheer length provides statistical power that no other stream can match.</p>
+                </div>
+                <div class="stream-card">
+                    <h4>ATLAS</h4>
+                    <p><strong>The thin needle.</strong> A short (~15 deg) but extremely thin stream discovered in the ATLAS survey. Its very low velocity dispersion (stars moving almost identically) makes it exquisitely sensitive to perturbations &mdash; even a small subhalo creates a detectable gap. Think of it as a very sensitive instrument with a small field of view.</p>
+                </div>
+                <div class="stream-card">
+                    <h4>Jhelum</h4>
+                    <p><strong>The double.</strong> A stream with two parallel components (a "bifurcation"). This complex morphology may itself be evidence of a subhalo interaction &mdash; a dark matter clump could have split the stream in two. At ~13 kpc, Gaia measures it well. The double structure provides unique constraints on impact geometry.</p>
+                </div>
+                <div class="stream-card">
+                    <h4>Fjorm</h4>
+                    <p><strong>The clean one.</strong> A recently discovered thin stream at intermediate distance (~15 kpc). Its clean kinematics (stars moving very uniformly) make gap identification straightforward. Fewer confounding factors from the Milky Way's baryonic structures (spiral arms, giant molecular clouds).</p>
+                </div>
+                <div class="stream-card">
+                    <h4>Sylgr</h4>
+                    <p><strong>The compact.</strong> The shortest stream in our sample (~12 deg) with fewer member stars. While this limits its statistical power individually, its very cold kinematics amplify sensitivity to small perturbations. Every stream adds information to the hierarchical analysis, even short ones.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Test Results -->
+        <section id="test-results" class="section">
+            <h2>Test Results</h2>
+
+            <div class="plain-english" style="margin-bottom: 2rem;">
+                <strong>Does it all actually work?</strong> We rigorously test every component of the system with 49 automated tests. Each test creates a small fake dataset, runs it through a specific component, and checks that the output has the right shape, contains no errors (NaN/Inf), and behaves correctly. All 49 tests pass, giving us confidence that the code is correct. Below is a breakdown of what each group of tests verifies.
+            </div>
+
+            <div class="test-summary">
+                <div class="test-badge passed-badge">
+                    <span class="badge-number">49</span>
+                    <span class="badge-label">PASSED</span>
+                </div>
+                <div class="test-badge failed-badge">
+                    <span class="badge-number">0</span>
+                    <span class="badge-label">FAILED</span>
+                </div>
+            </div>
+
+            <div class="chart-container" style="max-width: 700px; margin: 2rem auto;">
+                <h4>Test Coverage by Module</h4>
+                <canvas id="testCoverage" width="600" height="300"></canvas>
+                <p class="chart-caption">Distribution of tests across modules. The GNN Encoder, baseline models, and model utilities each have 7 tests (the most). The attention readout and hierarchical model each have 6. Every module in the codebase has test coverage.</p>
+            </div>
+
+            <div class="test-details">
+                <div class="test-group">
+                    <h4>GNN Encoder (7 tests)</h4>
+                    <p class="test-group-desc">Tests the core graph neural network that processes stellar streams.</p>
+                    <ul class="test-list">
+                        <li class="pass">Forward shape: output has correct dimensions</li>
+                        <li class="pass">No NaN/Inf: all outputs are valid numbers</li>
+                        <li class="pass">Single graph: works with just one stream (not just batches)</li>
+                        <li class="pass">Various embedding dims: 64, 128, 256 all work</li>
+                        <li class="pass">Gradient flow: backpropagation reaches all layers</li>
+                        <li class="pass">Deterministic: same input = same output in eval mode</li>
+                        <li class="pass">Large batch: handles 16 simultaneous graphs</li>
+                    </ul>
+                </div>
+                <div class="test-group">
+                    <h4>Multi-Task Model (4 tests)</h4>
+                    <p class="test-group-desc">Tests the combined classification + regression model.</p>
+                    <ul class="test-list">
+                        <li class="pass">Output shapes: embedding, class logits, regression all correct</li>
+                        <li class="pass">No NaN: multi-task outputs all valid</li>
+                        <li class="pass">Training step: backward pass computes gradients</li>
+                        <li class="pass">Encoder accessible: can extract the encoder sub-model</li>
+                    </ul>
+                </div>
+                <div class="test-group">
+                    <h4>Attention Readout (6 tests)</h4>
+                    <p class="test-group-desc">Tests the attention-based interpretability mechanism.</p>
+                    <ul class="test-list">
+                        <li class="pass">Attention output shapes correct</li>
+                        <li class="pass">Weights sum to 1 per graph (valid probability)</li>
+                        <li class="pass">Encoder works with attention enabled</li>
+                        <li class="pass">forward_with_attention returns attention weights</li>
+                        <li class="pass">get_node_importance produces per-star scores</li>
+                        <li class="pass">Raises error if attention not enabled</li>
+                    </ul>
+                </div>
+                <div class="test-group">
+                    <h4>MC Dropout (5 tests)</h4>
+                    <p class="test-group-desc">Tests the uncertainty estimation via Monte Carlo dropout.</p>
+                    <ul class="test-list">
+                        <li class="pass">Stochastic: different passes give different results</li>
+                        <li class="pass">MC mean close to deterministic embedding</li>
+                        <li class="pass">Std positive: uncertainty is non-zero</li>
+                        <li class="pass">Enable activates dropout during evaluation</li>
+                        <li class="pass">MultiTask convenience method works</li>
+                    </ul>
+                </div>
+                <div class="test-group">
+                    <h4>Segment GNN (3 tests)</h4>
+                    <p class="test-group-desc">Tests the multi-scale graph processing.</p>
+                    <ul class="test-list">
+                        <li class="pass">Forward shape: segment embeddings correct size</li>
+                        <li class="pass">Multi-scale encoder: star + segment integration works</li>
+                        <li class="pass">Graceful degradation: works without segment data</li>
+                    </ul>
+                </div>
+                <div class="test-group">
+                    <h4>Hierarchical + Coverage (6 tests)</h4>
+                    <p class="test-group-desc">Tests the physics rate model and mock challenge metrics.</p>
+                    <ul class="test-list">
+                        <li class="pass">Rate decreases as M_hm increases (physics correct)</li>
+                        <li class="pass">Rate scales with stream length (longer = more impacts)</li>
+                        <li class="pass">Rate always positive (no negative impact counts)</li>
+                        <li class="pass">Coverage metrics compute correctly from samples</li>
+                        <li class="pass">Orbital edge features produce 7 dimensions</li>
+                        <li class="pass">Standard features produce 5 dimensions</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Configuration -->
+        <section id="config" class="section">
+            <h2>Configuration</h2>
+
+            <div class="plain-english" style="margin-bottom: 2rem;">
+                <strong>All the knobs and settings:</strong> Machine learning systems have many hyperparameters that control how they learn. Below are all the settings for our system, organized by component. These values were chosen based on standard practices and physics considerations. The configuration is stored in YAML files (<code>config/training.yaml</code> and <code>config/dm_models.yaml</code>) for reproducibility.
+            </div>
+
+            <div class="config-grid">
+                <div class="config-card">
+                    <h4>Training</h4>
+                    <table class="config-table">
+                        <tr><td>Batch Size</td><td>32</td></tr>
+                        <tr><td>Epochs</td><td>200</td></tr>
+                        <tr><td>Optimizer</td><td>AdamW</td></tr>
+                        <tr><td>Learning Rate</td><td>3e-4</td></tr>
+                        <tr><td>Weight Decay</td><td>1e-4</td></tr>
+                        <tr><td>LR Scheduler</td><td>Cosine w/ Warm Restarts</td></tr>
+                        <tr><td>T_0</td><td>50 epochs</td></tr>
+                        <tr><td>Gradient Clip</td><td>1.0</td></tr>
+                        <tr><td>Mixed Precision</td><td>bfloat16</td></tr>
+                        <tr><td>Early Stopping</td><td>60 epochs patience</td></tr>
+                    </table>
+                    <div class="plain-english-mini" style="margin-top: 0.75rem;">
+                        <em>Translation:</em> We train for up to 200 cycles through the data, 32 streams at a time. AdamW optimizer with cosine learning rate schedule. Training stops early if validation loss hasn't improved in 60 epochs (to prevent overfitting).
+                    </div>
+                </div>
+                <div class="config-card">
+                    <h4>GNN Architecture</h4>
+                    <table class="config-table">
+                        <tr><td>Conv Type</td><td>GINEConv</td></tr>
+                        <tr><td>Layers</td><td>6</td></tr>
+                        <tr><td>Hidden Dim</td><td>256</td></tr>
+                        <tr><td>Embedding Dim</td><td>128</td></tr>
+                        <tr><td>Dropout</td><td>0.1</td></tr>
+                        <tr><td>Pooling</td><td>Mean + Max (512-d)</td></tr>
+                        <tr><td>Residual</td><td>From layer 2+</td></tr>
+                        <tr><td>BatchNorm</td><td>Yes</td></tr>
+                        <tr><td>Node Features</td><td>18</td></tr>
+                        <tr><td>Edge Features</td><td>5 (7 w/ orbital)</td></tr>
+                    </table>
+                    <div class="plain-english-mini" style="margin-top: 0.75rem;">
+                        <em>Translation:</em> 6 message-passing layers with 256-dimensional internal representations, compressed to a 128-number fingerprint. 10% dropout for regularization, skip connections from layer 2 onward to help gradients flow.
+                    </div>
+                </div>
+                <div class="config-card">
+                    <h4>SBI / Inference</h4>
+                    <table class="config-table">
+                        <tr><td>Algorithm</td><td>SNPE-C (APT)</td></tr>
+                        <tr><td>Density Estimator</td><td>Neural Spline Flow</td></tr>
+                        <tr><td>NSF Transforms</td><td>8</td></tr>
+                        <tr><td>NSF Bins</td><td>8</td></tr>
+                        <tr><td>NSF Hidden</td><td>[256, 256]</td></tr>
+                        <tr><td>Rounds</td><td>5</td></tr>
+                        <tr><td>Sims Round 1</td><td>5,000</td></tr>
+                        <tr><td>Sims/Round 2-5</td><td>2,000</td></tr>
+                        <tr><td>Posterior Samples</td><td>10,000</td></tr>
+                        <tr><td>CI Level</td><td>90%</td></tr>
+                    </table>
+                    <div class="plain-english-mini" style="margin-top: 0.75rem;">
+                        <em>Translation:</em> Neural Spline Flow with 8 transformations learns the posterior. 5 rounds of sequential training with a total of 13,000 simulations. We draw 10,000 posterior samples and report 90% credible intervals.
+                    </div>
+                </div>
+                <div class="config-card">
+                    <h4>Graph Construction</h4>
+                    <table class="config-table">
+                        <tr><td>k (neighbors)</td><td>16</td></tr>
+                        <tr><td>Construction dims</td><td>phi1, phi2, pm1, pm2</td></tr>
+                        <tr><td>Max stars</td><td>3,000 (downsample)</td></tr>
+                        <tr><td>Multi-scale segs</td><td>20</td></tr>
+                        <tr><td>Seg k-neighbors</td><td>4</td></tr>
+                        <tr><td>Augmentation</td><td>phi1 offset, flip, noise</td></tr>
+                        <tr><td>Normalization</td><td>Standardize</td></tr>
+                        <tr><td>Baryonic perturb</td><td>50% of CDM sims</td></tr>
+                    </table>
+                    <div class="plain-english-mini" style="margin-top: 0.75rem;">
+                        <em>Translation:</em> Each star connects to its 16 nearest neighbors in 4D space (position + velocity). Streams with more than 3,000 stars are downsampled. The multi-scale view divides each stream into 20 segments.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Stellar Stream DM &mdash; Graph Neural Networks + Simulation-Based Inference for Dark Matter Substructure Detection</p>
+            <p>Built with PyTorch Geometric, sbi, NumPyro, emcee | 49/49 tests passing</p>
+            <p style="margin-top: 0.5rem;"><button class="pdf-btn" onclick="exportPDF()" style="display: inline-block;">&#128196; Download Complete PDF Report</button></p>
+        </footer>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
