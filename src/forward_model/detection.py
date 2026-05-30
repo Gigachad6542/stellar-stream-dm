@@ -53,7 +53,7 @@ from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
-from .scoring import GapFeature, compute_density_profile, detect_gaps
+from .scoring import GapFeature, compute_density_profile, detect_gaps, find_density_minima
 
 if TYPE_CHECKING:  # avoid a hard import cycle at module load time
     from .pipeline import ForwardModelConfig
@@ -170,37 +170,39 @@ def detect_impacts_modelfree(
     profile = compute_density_profile(
         phi1, phi1_range, bin_width_deg=density_bin_width_deg, weights=weights,
     )
+    # Strict gaps (clean, deep) drive the detection DECISION.
     gaps = detect_gaps(
         profile, min_depth=gap_min_depth, min_significance=gap_min_significance,
     )
+    # Prominence-ranked minima drive LOCALISATION — these always exist, so the
+    # forward-model phi1 grid is seeded from the real most-depleted regions even
+    # when gaps are shallow or contamination-diluted (e.g. the GD-1 catalog).
+    minima = find_density_minima(profile, top_k=5)
 
-    # Significant gaps (drive the decision); all detected gaps give localisation.
-    gap_locations = [float(g.phi1_center) for g in gaps]
+    gap_locations = [float(g.phi1_center) for g in minima]
     max_sig = float(max((g.significance for g in gaps), default=0.0))
     n_sig = int(sum(1 for g in gaps if g.significance >= significant_threshold))
 
-    # In-frame fallback positions: quartile longitudes of the observed stream.
-    # Used to seed the phi1 grid when no gap is found, so the forward model still
-    # scans physically plausible (in-frame) impact sites instead of a guess.
+    # In-frame fallback (only if even minima-finding returns nothing).
     finite_phi1 = phi1[np.isfinite(phi1)]
-    if finite_phi1.size:
-        fallback = [float(x) for x in np.percentile(finite_phi1, [25, 50, 75])]
-    else:
-        fallback = []
+    fallback = ([float(x) for x in np.percentile(finite_phi1, [25, 50, 75])]
+                if finite_phi1.size else [])
 
     detected = n_sig > 0
-    reason = (
-        f"{n_sig} gap(s) at significance >= {significant_threshold:.1f} "
-        f"(max significance {max_sig:.1f})"
-        if detected
-        else f"no gap reached significance {significant_threshold:.1f} "
-             f"(max {max_sig:.1f})"
-    )
+    if detected:
+        reason = (f"{n_sig} significant gap(s) (max sig {max_sig:.1f}); "
+                  f"deepest minima at {[f'{g.phi1_center:.0f}' for g in minima[:3]]}")
+    elif minima:
+        best = minima[0]
+        reason = (f"no >={significant_threshold:.0f}-sigma gap; deepest minimum at "
+                  f"phi1={best.phi1_center:.0f} (depth {best.depth:.2f}, sig {best.significance:.1f})")
+    else:
+        reason = "no density minima found"
 
     return DetectionResult(
         stream_name=stream_name,
         phi1_range=(float(phi1_range[0]), float(phi1_range[1])),
-        gaps=gaps,
+        gaps=minima,                       # localisation candidates (ranked)
         gap_phi1_locations=gap_locations,
         max_gap_significance=max_sig,
         n_significant_gaps=n_sig,
@@ -509,6 +511,7 @@ def seed_config_from_detection(
     max_phi1_seeds: int = 3,
     min_t_since_gyr: float = 0.5,
     max_t_since_gyr: float = 10.0,
+    stream_age_gyr: Optional[float] = None,
 ) -> "ForwardModelConfig":
     """Build a narrowed ForwardModelConfig from a DetectionResult.
 
@@ -547,15 +550,27 @@ def seed_config_from_detection(
                  base_config.impact_phi1_values)
 
     # --- time window from the GNN estimate ---
+    # A subhalo cannot have struck before the stream began forming, so the time
+    # since impact is physically capped at the stream's disruption age. The GNN
+    # head (trained across streams of different ages, and unreliable on OOD real
+    # data) can exceed this; cap it so the seeded window stays physical.
+    t_max = max_t_since_gyr
+    if stream_age_gyr is not None:
+        t_max = min(t_max, float(stream_age_gyr))
+
     t_est = detection.t_since_gyr_estimate
     if t_est is not None and np.isfinite(t_est):
-        t_lo = max(min_t_since_gyr, t_est - t_window_gyr)
-        t_hi = min(max_t_since_gyr, t_est + t_window_gyr)
+        t_est_capped = min(t_est, t_max)
+        if stream_age_gyr is not None and t_est > stream_age_gyr:
+            log.info("GNN t_since estimate %.2f Gyr exceeds %s disruption age %.2f Gyr; "
+                     "capping at the stream age.", t_est, base_config.stream_name, stream_age_gyr)
+        t_lo = max(min_t_since_gyr, t_est_capped - t_window_gyr)
+        t_hi = min(t_max, t_est_capped + t_window_gyr)
         if t_hi <= t_lo:  # degenerate window guard
-            t_lo, t_hi = min_t_since_gyr, max_t_since_gyr
+            t_lo, t_hi = min_t_since_gyr, t_max
         updates["t_since_range"] = (float(t_lo), float(t_hi))
-        log.info("Focused time grid on GNN estimate %.2f Gyr -> range [%.2f, %.2f] Gyr",
-                 t_est, t_lo, t_hi)
+        log.info("Focused time grid on GNN estimate %.2f Gyr (capped %.2f) -> range [%.2f, %.2f] Gyr",
+                 t_est, t_est_capped, t_lo, t_hi)
     else:
         log.info("No GNN time estimate; keeping base t_since_range %s",
                  base_config.t_since_range)

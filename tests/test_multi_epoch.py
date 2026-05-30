@@ -103,10 +103,21 @@ class TestRadialVelocityScore:
         assert active
         assert s_match < 1.0
 
-    def test_offset_tracks_higher_score(self):
+    def test_constant_offset_insensitive(self):
+        # A constant LOS zero-point offset is a frame/convention nuisance and
+        # must NOT inflate the score (it is removed before the RMS).
         rng = np.random.default_rng(1)
         phi1 = rng.uniform(0, 50, 2000)
         vrad = 100.0 + 0.5 * phi1
         s_match, _ = radial_velocity_score(phi1, vrad, phi1, vrad, (0, 50))
-        s_off, _ = radial_velocity_score(phi1, vrad + 20.0, phi1, vrad, (0, 50))
-        assert s_off > s_match
+        s_off, _ = radial_velocity_score(phi1, vrad + 50.0, phi1, vrad, (0, 50))
+        assert abs(s_off - s_match) < 1e-6
+
+    def test_differential_track_higher_score(self):
+        # A differential (slope) change IS a real perturbation and must raise it.
+        rng = np.random.default_rng(1)
+        phi1 = rng.uniform(0, 50, 4000)
+        vrad = 100.0 + 0.5 * phi1
+        s_match, _ = radial_velocity_score(phi1, vrad, phi1, vrad, (0, 50))
+        s_slope, _ = radial_velocity_score(phi1, 100.0 + 1.5 * phi1, phi1, vrad, (0, 50))
+        assert s_slope > s_match

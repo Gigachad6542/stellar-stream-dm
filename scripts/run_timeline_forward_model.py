@@ -323,6 +323,10 @@ def main() -> None:
                      "before grid evaluation.")
             return
 
+        # Stream disruption age caps the physically-allowed time since impact.
+        stream_age = model.stream_config.get(
+            "disruption_age_gyr", model.stream_config.get("isochrone_age_gyr"))
+
         # Seed the grid: replace the config with a narrowed one.
         config = seed_config_from_detection(
             detection, config,
@@ -330,6 +334,7 @@ def main() -> None:
             max_phi1_seeds=args.max_phi1_seeds,
             min_t_since_gyr=config.t_since_range[0],
             max_t_since_gyr=config.t_since_range[1],
+            stream_age_gyr=stream_age,
         )
         model.cfg = config
         log.info("Seeded grid: phi1=%s, t_since_range=%s",

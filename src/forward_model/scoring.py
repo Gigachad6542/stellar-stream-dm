@@ -200,6 +200,68 @@ def detect_gaps(
     return gaps
 
 
+def find_density_minima(
+    profile: DensityProfile,
+    top_k: int = 5,
+    smooth_sigma_bins: float = 2.0,
+    min_prominence_frac: float = 0.03,
+) -> list[GapFeature]:
+    """Return the most prominent density minima for *localisation*, ranked.
+
+    Unlike ``detect_gaps`` (which applies a hard depth/significance cut tuned for
+    clean simulated gaps), this always returns the real local minima of the
+    observed profile, ranked by prominence. It is used to seed the forward-model
+    phi1 grid from the actual most-depleted regions, even when a stream's gaps
+    are shallow or diluted by contamination (as in the current GD-1 catalog,
+    whose deepest dips are only ~10-15%).
+
+    Each returned ``GapFeature`` still carries its depth (vs a running baseline)
+    and Poisson significance so callers can judge how real each minimum is.
+    """
+    from scipy.ndimage import gaussian_filter1d, median_filter
+    from scipy.signal import find_peaks
+
+    density = profile.density
+    n = len(density)
+    if n < 5:
+        return []
+
+    smoothed = gaussian_filter1d(density, sigma=smooth_sigma_bins, mode="nearest")
+    window = min(15, n // 2) | 1
+    baseline = np.maximum(median_filter(density, size=window, mode="nearest"), 1e-10)
+    sigma_poisson = np.sqrt(np.maximum(profile.counts, 1.0)) / max(profile.counts.sum(), 1.0)
+
+    # Find minima as peaks of the inverted, smoothed density, ranked by prominence.
+    inv = smoothed.max() - smoothed
+    prom = min_prominence_frac * (smoothed.max() - smoothed.min() + 1e-12)
+    idx, props = find_peaks(inv, prominence=prom)
+    if len(idx) == 0:
+        # Fall back to the single global minimum.
+        idx = np.array([int(np.argmin(smoothed))])
+        props = {"prominences": np.array([float(smoothed.max() - smoothed.min())])}
+
+    feats = []
+    for j, i in enumerate(idx):
+        depth = float(1.0 - smoothed[i] / baseline[i])
+        sig = float(max(depth, 0.0) / max(sigma_poisson[i], 1e-10))
+        # estimate width at half-prominence
+        half = baseline[i] * (1.0 - max(depth, 0.0) / 2.0)
+        left = i
+        while left > 0 and smoothed[left] < half:
+            left -= 1
+        right = i
+        while right < n - 1 and smoothed[right] < half:
+            right += 1
+        feats.append((float(props["prominences"][j]), GapFeature(
+            phi1_center=float(profile.bin_centers[i]),
+            phi1_width=max((right - left) * profile.bin_width_deg, profile.bin_width_deg),
+            depth=max(depth, 0.0),
+            significance=sig,
+        )))
+    feats.sort(key=lambda t: t[0], reverse=True)
+    return [g for _, g in feats[:top_k]]
+
+
 # ---------------------------------------------------------------------------
 # Individual scorers
 # ---------------------------------------------------------------------------
@@ -378,7 +440,14 @@ def radial_velocity_score(
 
     if len(resid) < min_bins:
         return 0.0, False
-    return float(np.sqrt(np.mean(np.array(resid) ** 2))), True
+
+    resid = np.array(resid)
+    # Remove the overall median offset: an absolute line-of-sight velocity zero
+    # point is a frame/convention nuisance (e.g. heliocentric sim vrad vs a
+    # survey's GSR vlos), not a subhalo signal. Scoring the *residual* RV track
+    # after subtracting the common offset isolates the differential perturbation.
+    resid = resid - np.median(resid)
+    return float(np.sqrt(np.mean(resid ** 2))), True
 
 
 # ---------------------------------------------------------------------------
