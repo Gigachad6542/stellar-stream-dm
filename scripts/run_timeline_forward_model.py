@@ -300,11 +300,15 @@ def main() -> None:
         log.info("Detection: impact_detected=%s | %s",
                  detection.impact_detected, detection.detection_reason)
         if detection.gnn_available:
-            log.info("  GNN: p_impact=%.3f, t_since~%s Gyr, effective_n=%.2f (over-confident on real "
-                     "data; treat as advisory)",
+            log.info("  GNN: p_impact=%.3f, t_since~%s Gyr, effective_n=%.2f",
                      detection.p_impact,
                      f"{detection.t_since_gyr_estimate:.2f}" if detection.t_since_gyr_estimate else "n/a",
                      detection.effective_n_impacts or 0.0)
+            if detection.ood_max_sigma is not None:
+                flag = " [OUT-OF-DISTRIBUTION: treat p_impact as unreliable]" if \
+                    detection.ood_max_sigma >= 5.0 else ""
+                log.info("  GNN input OOD check: max %.1f sigma, %.1f%% clipped%s",
+                         detection.ood_max_sigma, 100.0 * (detection.ood_frac_clipped or 0.0), flag)
 
         # Persist the detection result alongside the forward-model outputs.
         det_dir = Path(config.output_dir) / config.stream_name

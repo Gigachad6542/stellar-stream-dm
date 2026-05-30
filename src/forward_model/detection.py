@@ -89,6 +89,10 @@ class DetectionResult:
     t_since_gyr_estimate: Optional[float] = None
     t_since_gyr_log10: Optional[float] = None
     effective_n_impacts: Optional[float] = None
+    # Out-of-distribution diagnostics for the GNN inputs (real data vs training).
+    # High values mean the network is extrapolating and its p_impact is untrustworthy.
+    ood_max_sigma: Optional[float] = None
+    ood_frac_clipped: Optional[float] = None
 
     # --- Decision ---
     # impact_detected is True if EITHER the model-free gap finder fires (the
@@ -120,6 +124,8 @@ class DetectionResult:
             "gnn_available": self.gnn_available,
             "p_impact": self.p_impact,
             "gnn_impact_flag": self.gnn_impact_flag,
+            "ood_max_sigma": self.ood_max_sigma,
+            "ood_frac_clipped": self.ood_frac_clipped,
             "t_since_gyr_estimate": self.t_since_gyr_estimate,
             "t_since_gyr_log10": self.t_since_gyr_log10,
             "effective_n_impacts": self.effective_n_impacts,
@@ -235,6 +241,8 @@ class StreamImpactDetector:
         max_stars: int = 1200,
         subsample_seed: int = 42,
         p_impact_threshold: float = 0.5,
+        clip_sigma: float = 5.0,
+        temperature: Optional[float] = None,
     ) -> None:
         import torch
 
@@ -242,6 +250,15 @@ class StreamImpactDetector:
         self.max_stars = max_stars
         self.subsample_seed = subsample_seed
         self.p_impact_threshold = p_impact_threshold
+        # Clip standardized features to +/- clip_sigma so a single out-of-
+        # distribution feature cannot explode the logit (the cause of the
+        # p_impact=1.0 saturation on real data). temperature softens the
+        # probabilities; loaded from calibration.json next to the checkpoint
+        # if present, else 1.0.
+        self.clip_sigma = clip_sigma
+        self.temperature = temperature
+        self.last_ood_max_sigma = None
+        self.last_ood_frac_clipped = None
 
         self.model = None
         self.normalizer = None
@@ -327,8 +344,21 @@ class StreamImpactDetector:
         if norm_path.exists():
             mean, std = load_normalizer(norm_path)
             self.normalizer = FeatureNormalizer(mean, std)
-            log.info("Detector loaded from %s (normalizer %s, k=%d, profile_dim=%d)",
-                     path, norm_path.name, self.k_neighbors, profile_dim)
+            # Temperature for probability calibration (calibration.json sidecar).
+            if self.temperature is None:
+                calib_path = ckpt_path.parent / "calibration.json"
+                if calib_path.exists():
+                    import json
+                    try:
+                        self.temperature = float(json.loads(calib_path.read_text())["temperature"])
+                        log.info("  Loaded calibration temperature T=%.3f", self.temperature)
+                    except Exception as e:
+                        log.warning("  Failed to read calibration.json: %s", e)
+                        self.temperature = 1.0
+                else:
+                    self.temperature = 1.0
+            log.info("Detector loaded from %s (normalizer %s, k=%d, profile_dim=%d, T=%.2f)",
+                     path, norm_path.name, self.k_neighbors, profile_dim, self.temperature)
         else:
             log.warning(
                 "Normalizer %s not found; GNN detection disabled (cannot reproduce "
@@ -354,6 +384,14 @@ class StreamImpactDetector:
                 data.x = data.x[idx]
                 data.batch = torch.zeros(self.max_stars, dtype=torch.long)
 
+            # Impute unmeasured features (NaN, e.g. missing RV for a stream with
+            # no spectroscopy) to the training mean so they contribute ~0 after
+            # standardisation, instead of feeding fake constants that explode
+            # through the std-clamped normalizer.
+            means = self.normalizer.mean.to(dtype=data.x.dtype)
+            nan_mask = torch.isnan(data.x)
+            if nan_mask.any():
+                data.x = torch.where(nan_mask, means.unsqueeze(0).expand_as(data.x), data.x)
             data.x = torch.nan_to_num(data.x, nan=0.0, posinf=0.0, neginf=0.0)
 
             # 1) kNN graph (uses normalizer internally for construction features)
@@ -368,11 +406,21 @@ class StreamImpactDetector:
             # 3) standardise node features (matches train_v2 order)
             data.x = self.normalizer(data.x)
 
+            # Out-of-distribution guard: record how far real features land from
+            # the training distribution, then clip so no single feature can
+            # saturate the logit.
+            abs_x = data.x.abs()
+            self.last_ood_max_sigma = float(abs_x.max().item())
+            self.last_ood_frac_clipped = float((abs_x > self.clip_sigma).float().mean().item())
+            data.x = torch.clamp(data.x, -self.clip_sigma, self.clip_sigma)
+
             data = data.to(self.device)
             with torch.no_grad():
                 _, binary_logit, _mhm_out, reg_out = self.model(data)
 
-            p_impact = float(torch.sigmoid(binary_logit).flatten()[0].item())
+            logit = float(binary_logit.flatten()[0].item())
+            T = self.temperature or 1.0
+            p_impact = float(1.0 / (1.0 + np.exp(-logit / T)))
             reg = reg_out.flatten().cpu().numpy()
             effective_n = float(reg[0]) if reg.size >= 1 else None
             log_t = float(reg[1]) if reg.size >= 2 else None
@@ -426,6 +474,12 @@ class StreamImpactDetector:
         result.t_since_gyr_estimate = preds["t_since_gyr_estimate"]
         result.t_since_gyr_log10 = preds["t_since_gyr_log10"]
         result.effective_n_impacts = preds["effective_n_impacts"]
+        result.ood_max_sigma = self.last_ood_max_sigma
+        result.ood_frac_clipped = self.last_ood_frac_clipped
+        if result.ood_max_sigma is not None and result.ood_max_sigma >= self.clip_sigma:
+            log.warning("  GNN inputs are out-of-distribution (max %.1f sigma, %.1f%% clipped); "
+                        "p_impact is unreliable.", result.ood_max_sigma,
+                        100.0 * (result.ood_frac_clipped or 0.0))
 
         # The GNN flag is kept separate from the model-free gap flag because the
         # network is trained on simulations and tends to be over-confident on

@@ -141,6 +141,40 @@ class TestSeedConfig:
 # Learned detector: graceful degradation
 # ---------------------------------------------------------------------------
 
+class TestInputAccuracy:
+    """The fix for GNN over-confidence: use real errors, pass NaN through for
+    unmeasured features so the detector can impute them to the training mean."""
+
+    def test_obs_to_data_uses_real_errors(self):
+        from src.forward_model.gnn_scorer import obs_particles_to_data
+        n = 50
+        obs = {
+            "phi1": np.linspace(0, 50, n), "phi2": np.zeros(n),
+            "pm1": np.zeros(n), "pm2": np.zeros(n), "dist": np.full(n, 8.0),
+            "vrad": np.full(n, np.nan),               # unmeasured RV
+            "e_dist": np.full(n, 0.7), "e_pm1": np.full(n, 0.42),
+            "e_pm2": np.full(n, 0.43), "e_vrad": np.full(n, np.nan),
+        }
+        data = obs_particles_to_data(obs, "GD1")
+        x = data.x.numpy()
+        # Columns: [phi1,phi2,dist,pm1,pm2,vrad,e_dist,e_pm1,e_pm2,e_vrad,mem,onehot]
+        assert np.allclose(x[:, 6], 0.7)     # real e_dist used, not the 0.3 default
+        assert np.allclose(x[:, 7], 0.42)    # real e_pm1 used, not the 0.1 default
+        assert np.isnan(x[:, 5]).all()       # unmeasured vrad passed through as NaN
+        assert np.isnan(x[:, 9]).all()       # unmeasured e_vrad passed through as NaN
+
+    def test_obs_to_data_falls_back_to_defaults(self):
+        from src.forward_model.gnn_scorer import obs_particles_to_data
+        n = 30
+        obs = {"phi1": np.linspace(0, 30, n), "phi2": np.zeros(n),
+               "pm1": np.zeros(n), "pm2": np.zeros(n), "dist": np.full(n, 8.0),
+               "vrad": np.zeros(n)}
+        data = obs_particles_to_data(obs, "GD1")
+        x = data.x.numpy()
+        assert np.allclose(x[:, 6], 0.3)     # default e_dist when not provided
+        assert np.allclose(x[:, 7], 0.1)     # default e_pm1 when not provided
+
+
 class TestDetectorDegradation:
     def test_missing_checkpoint_is_unavailable(self):
         det = StreamImpactDetector("checkpoints/does_not_exist.pt", device="cpu")

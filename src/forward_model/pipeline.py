@@ -533,6 +533,11 @@ class TimelineForwardModel:
             }
             if "membership_prob" in grp:
                 raw["membership_prob"] = grp["membership_prob"][:].astype(np.float64)
+            # Real per-star measurement errors (used by the detector to impute /
+            # weight features accurately instead of fabricated constants).
+            for ecol in ("e_dist", "e_pm1", "e_pm2", "e_vrad"):
+                if ecol in grp:
+                    raw[ecol] = grp[ecol][:].astype(np.float64)
 
         n_raw = len(raw["phi1"])
 

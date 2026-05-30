@@ -115,12 +115,19 @@ def obs_particles_to_data(
 
     mem = obs.get("membership_prob", np.ones(n))
 
-    # Use typical errors (real errors from HDF5 would be better but aren't
-    # always available in the forward model's filtered particle dict)
-    e_dist = np.full(n, 0.3, dtype=np.float32)
-    e_pm1 = np.full(n, 0.1, dtype=np.float32)
-    e_pm2 = np.full(n, 0.1, dtype=np.float32)
-    e_vrad = np.full(n, 2.0, dtype=np.float32)
+    # Prefer the real per-star errors from the catalog when available; fall back
+    # to typical Gaia values otherwise. Real (or NaN-for-unmeasured) values let
+    # the detector impute unmeasured features to the training mean instead of
+    # feeding fake constants through a std-clamped normalizer (which otherwise
+    # produces huge out-of-distribution inputs and saturated predictions).
+    def _col(key, default):
+        return (np.asarray(obs[key], dtype=np.float32) if key in obs
+                else np.full(n, default, dtype=np.float32))
+
+    e_dist = _col("e_dist", 0.3)
+    e_pm1 = _col("e_pm1", 0.1)
+    e_pm2 = _col("e_pm2", 0.1)
+    e_vrad = _col("e_vrad", 2.0)
 
     features = np.column_stack([
         np.asarray(obs["phi1"], dtype=np.float32),
