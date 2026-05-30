@@ -29,7 +29,9 @@ venv/
 
 # Data — all raw downloads, processed HDF5, and simulation variants are
 # large and/or reproducible; generate locally. Ignore the whole tree.
-data/
+# Anchored with a leading slash so it only matches the top-level data/ dir,
+# NOT source packages like src/data/.
+/data/
 
 # Large binary artifacts (training data, model weights, caches) — never commit
 *.h5

@@ -193,6 +193,8 @@ def _worker_evaluate(params: dict) -> dict:
         weights=ScoreWeights(**cfg["score_weights"]),
         density_bin_width=cfg["density_bin_width_deg"],
         kinematic_bin_width=cfg["kinematic_bin_width_deg"],
+        sim_vrad=perturbed.vrad,
+        obs_vrad=obs.get("vrad"),
     )
 
     elapsed = time.perf_counter() - t0
@@ -207,6 +209,7 @@ def _worker_evaluate(params: dict) -> dict:
         "density_residual": score.density_residual,
         "gap_agreement": score.gap_agreement,
         "kinematic_perturbation": score.kinematic_perturbation,
+        "radial_velocity": score.radial_velocity,
         "combined": score.combined,
         "n_stars_sim": len(perturbed.phi1),
         "runtime_s": elapsed,
@@ -294,6 +297,7 @@ class CandidateResult:
             "density_residual": self.score.density_residual,
             "gap_agreement": self.score.gap_agreement,
             "kinematic_perturbation": self.score.kinematic_perturbation,
+            "radial_velocity": self.score.radial_velocity,
             "profile_distance": self.score.profile_distance,
             "n_stars_sim": self.n_stars_sim,
             "runtime_s": self.runtime_s,
@@ -409,8 +413,16 @@ class TimelineForwardModel:
     # Stage 1: Real-data preparation
     # ------------------------------------------------------------------
 
-    def prepare(self) -> None:
-        """Load observed stream data and compute baseline observables."""
+    def prepare(self, observed_override: Optional[dict] = None) -> None:
+        """Load observed stream data and compute baseline observables.
+
+        Args:
+            observed_override: Optional dict of star arrays (phi1, phi2, pm1,
+                pm2, dist, vrad, and optionally membership_prob) to use as the
+                observed stream instead of loading from HDF5. This is the entry
+                point for injection-recovery experiments, where a synthetic
+                stream with a known encounter plays the role of the real data.
+        """
         log.info("Stage 1: Preparing observed data for %s", self.cfg.stream_name)
 
         # Load stream configuration
@@ -419,8 +431,13 @@ class TimelineForwardModel:
         self.stream_config = all_config["streams"][self.cfg.stream_name]
         self.potential = get_mw_potential(self.cfg.config_path)
 
-        # Load real data from processed HDF5
-        self._load_observed_data()
+        # Observed data: injected synthetic stream, or real data from HDF5.
+        if observed_override is not None:
+            self.obs_particles = {k: np.asarray(v) for k, v in observed_override.items()}
+            log.info("  Using injected synthetic observed stream (%d stars)",
+                     len(self.obs_particles["phi1"]))
+        else:
+            self._load_observed_data()
 
         # Use the actual data extent for profiling (not the config's simulation
         # range which may be broader). Trim 2% off each end to avoid edge effects.
@@ -601,6 +618,8 @@ class TimelineForwardModel:
             weights=self.cfg.score_weights,
             density_bin_width=self.cfg.density_bin_width_deg,
             kinematic_bin_width=self.cfg.kinematic_bin_width_deg,
+            sim_vrad=self.base_stream.vrad,
+            obs_vrad=self.obs_particles.get("vrad"),
         )
 
         # Add GNN profile distance if available
@@ -739,6 +758,8 @@ class TimelineForwardModel:
             weights=self.cfg.score_weights,
             density_bin_width=self.cfg.density_bin_width_deg,
             kinematic_bin_width=self.cfg.kinematic_bin_width_deg,
+            sim_vrad=perturbed.vrad,
+            obs_vrad=self.obs_particles.get("vrad"),
         )
 
         # GNN profile distance (if scorer available)
@@ -922,6 +943,7 @@ class TimelineForwardModel:
                         density_residual=result_dict["density_residual"],
                         gap_agreement=result_dict["gap_agreement"],
                         kinematic_perturbation=result_dict["kinematic_perturbation"],
+                        radial_velocity=result_dict.get("radial_velocity", 0.0),
                         combined=result_dict["combined"],
                     ),
                     n_stars_sim=result_dict["n_stars_sim"],
@@ -1191,6 +1213,8 @@ class TimelineForwardModel:
                 weights=self.cfg.score_weights,
                 density_bin_width=self.cfg.density_bin_width_deg,
                 kinematic_bin_width=self.cfg.kinematic_bin_width_deg,
+                sim_vrad=perturbed.vrad,
+                obs_vrad=self.obs_particles.get("vrad"),
             )
 
             # GNN profile distance
@@ -1462,6 +1486,8 @@ class TimelineForwardModel:
             weights=self.cfg.score_weights,
             density_bin_width=self.cfg.density_bin_width_deg,
             kinematic_bin_width=self.cfg.kinematic_bin_width_deg,
+            sim_vrad=perturbed.vrad,
+            obs_vrad=self.obs_particles.get("vrad"),
         )
 
         # GNN profile distance

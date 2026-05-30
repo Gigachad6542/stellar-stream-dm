@@ -76,6 +76,7 @@ class ScoreResult:
     density_residual: float = 0.0
     gap_agreement: float = 0.0
     kinematic_perturbation: float = 0.0
+    radial_velocity: float = 0.0
     profile_distance: float = 0.0
     combined: float = 0.0
     details: dict = field(default_factory=dict)
@@ -333,6 +334,53 @@ def kinematic_perturbation_score(
     return 0.5 * rms_pm1 + 0.5 * rms_pm2
 
 
+def radial_velocity_score(
+    sim_phi1: np.ndarray,
+    sim_vrad: np.ndarray,
+    obs_phi1: np.ndarray,
+    obs_vrad: np.ndarray,
+    phi1_range: tuple[float, float],
+    bin_width_deg: float = 4.0,
+    min_bins: int = 2,
+) -> tuple[float, bool]:
+    """Score the match of the radial-velocity (line-of-sight) track.
+
+    Radial velocity is the phase-space dimension most directly tied to the
+    "rewind": line-of-sight velocity errors dominate backward orbit integration.
+    It is empty in the base Gaia membership tables and only becomes available
+    once real spectroscopic RVs are fused in (see ``src/data/multi_epoch.py``).
+
+    Only observed bins with a finite RV are compared, so streams without RV
+    coverage leave this term inactive. Returns ``(score, active)`` where
+    ``active`` is False when there is insufficient observed RV to compare.
+
+    Lower is better; the score is the RMS of binned-median vrad residuals.
+    """
+    obs_vrad = np.asarray(obs_vrad, dtype=np.float64)
+    obs_phi1 = np.asarray(obs_phi1, dtype=np.float64)
+    finite = np.isfinite(obs_vrad)
+    if finite.sum() < 5:
+        return 0.0, False
+
+    obs_phi1 = obs_phi1[finite]
+    obs_vrad = obs_vrad[finite]
+
+    n_bins = max(1, int(np.ceil((phi1_range[1] - phi1_range[0]) / bin_width_deg)))
+    edges = np.linspace(phi1_range[0], phi1_range[1], n_bins + 1)
+
+    resid = []
+    for i in range(n_bins):
+        sim_mask = (sim_phi1 >= edges[i]) & (sim_phi1 < edges[i + 1]) & np.isfinite(sim_vrad)
+        obs_mask = (obs_phi1 >= edges[i]) & (obs_phi1 < edges[i + 1])
+        if sim_mask.sum() < 3 or obs_mask.sum() < 3:
+            continue
+        resid.append(np.median(sim_vrad[sim_mask]) - np.median(obs_vrad[obs_mask]))
+
+    if len(resid) < min_bins:
+        return 0.0, False
+    return float(np.sqrt(np.mean(np.array(resid) ** 2))), True
+
+
 # ---------------------------------------------------------------------------
 # Combined scorer
 # ---------------------------------------------------------------------------
@@ -343,6 +391,7 @@ class ScoreWeights:
     density: float = 1.0
     gap: float = 1.5          # gap morphology is the primary observable
     kinematic: float = 0.8
+    radial_velocity: float = 0.8   # only active when real RVs are present
     profile: float = 0.5
 
 
@@ -361,6 +410,9 @@ def combined_score(
     weights: Optional[ScoreWeights] = None,
     density_bin_width: float = 1.0,
     kinematic_bin_width: float = 2.0,
+    sim_vrad: Optional[np.ndarray] = None,
+    obs_vrad: Optional[np.ndarray] = None,
+    rv_bin_width: float = 4.0,
 ) -> ScoreResult:
     """Compute all individual scores and a weighted combination.
 
@@ -387,18 +439,31 @@ def combined_score(
         phi1_range, kinematic_bin_width,
     )
 
-    # Weighted combination
+    # Radial-velocity term: only active when real observed RVs are supplied.
+    s_rv, rv_active = 0.0, False
+    if sim_vrad is not None and obs_vrad is not None:
+        s_rv, rv_active = radial_velocity_score(
+            sim_phi1, sim_vrad, obs_phi1, obs_vrad, phi1_range, rv_bin_width,
+        )
+
+    # Weighted combination over the active terms (RV only when present), so
+    # adding RV coverage does not rescale the score for streams without it.
     w_total = weights.density + weights.gap + weights.kinematic
-    s_combined = (
+    s_weighted = (
         weights.density * s_density
         + weights.gap * s_gap
         + weights.kinematic * s_kin
-    ) / max(w_total, 1e-6)
+    )
+    if rv_active:
+        w_total += weights.radial_velocity
+        s_weighted += weights.radial_velocity * s_rv
+    s_combined = s_weighted / max(w_total, 1e-6)
 
     return ScoreResult(
         density_residual=s_density,
         gap_agreement=s_gap,
         kinematic_perturbation=s_kin,
+        radial_velocity=s_rv,
         profile_distance=0.0,  # computed separately if profile features available
         combined=s_combined,
         details={
@@ -406,8 +471,10 @@ def combined_score(
                 "density": weights.density,
                 "gap": weights.gap,
                 "kinematic": weights.kinematic,
+                "radial_velocity": weights.radial_velocity,
                 "profile": weights.profile,
             },
+            "rv_active": rv_active,
             "n_obs_gaps": len(obs_gaps),
             "n_sim_gaps": len(sim_gaps),
         },
