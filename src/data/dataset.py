@@ -426,12 +426,21 @@ class StreamSimDataset(Dataset):
         downsample_seed: Optional[int] = None,
         label_schema: str = "compact",
         timeline_n_bins: int = 5,
+        error_dr: Optional[dict] = None,
     ) -> None:
         self.sim_dir = Path(sim_dir)
         self.k = k_neighbors
         self.normalizer = normalizer
         self.max_stars = max_stars
         self.augment = augment
+        # Error domain randomization: draw realistic, VARYING per-star
+        # measurement errors at load time so the e_* features are not
+        # near-constant. Near-constant features get their std clamped by the
+        # normalizer, which makes any real-data offset explode to ~100 sigma
+        # (the cause of p_impact=1.0 saturation on real streams). Applied
+        # deterministically per simulation (seeded) so the normalizer and
+        # training are reproducible. See changelog 2026-05-30 overconfidence fix.
+        self.error_dr = error_dr if (error_dr and error_dr.get("enabled")) else None
         self.cache_dir = Path(cache_dir) if cache_dir else None
         self.preload_ram = preload_ram
         self._use_orbital_features = use_orbital_features
@@ -601,6 +610,8 @@ class StreamSimDataset(Dataset):
             # Append stream one-hot encoding (7 dims)
             x = np.column_stack([x, stream_one_hot(sname, len(x))])
 
+        if self.error_dr is not None:
+            x = self._apply_error_dr(x, idx)
         if self.augment:
             x = self._augment(x)
 
@@ -746,6 +757,46 @@ class StreamSimDataset(Dataset):
                 rng = np.random.default_rng(int(self.downsample_seed) + int(idx))
                 choose_idx = rng.choice(len(x), self.max_stars, replace=False)
             return x[choose_idx]
+        return x
+
+    def _apply_error_dr(self, x: np.ndarray, idx: int) -> np.ndarray:
+        """Draw realistic, varying per-star measurement errors (domain randomization).
+
+        Sets the e_dist/e_pm1/e_pm2/e_vrad feature columns (indices 6-9) to values
+        drawn log-uniformly over realistic Gaia DR3 ranges, adds matching
+        observational noise to the corresponding observables, and masks the radial
+        velocity for a fraction of simulations (mimicking streams without
+        spectroscopy, e.g. GD-1). This gives the error features real spread so the
+        normalizer does not clamp them, closing the sim-to-real gap that caused
+        the detector to saturate to p_impact=1.0 on real data.
+        """
+        cfg = self.error_dr
+        n = len(x)
+        rng = np.random.default_rng(int(cfg.get("seed", 12345)) + int(idx))
+
+        def _logu(rng_, rng_range):
+            lo, hi = rng_range
+            return np.exp(rng_.uniform(np.log(lo), np.log(hi), n)).astype(np.float32)
+
+        e_dist = _logu(rng, cfg.get("e_dist_kpc", [0.3, 2.0]))
+        e_pm1 = _logu(rng, cfg.get("e_pm_masyr", [0.05, 0.6]))
+        e_pm2 = _logu(rng, cfg.get("e_pm_masyr", [0.05, 0.6]))
+        e_vrad = _logu(rng, cfg.get("e_vrad_kms", [1.0, 8.0]))
+
+        x = x.copy()
+        if cfg.get("add_noise", True):
+            x[:, 2] = x[:, 2] + rng.normal(0.0, e_dist)
+            x[:, 3] = x[:, 3] + rng.normal(0.0, e_pm1)
+            x[:, 4] = x[:, 4] + rng.normal(0.0, e_pm2)
+        # Radial velocity: a fraction of streams have no spectroscopy at all.
+        if rng.random() < float(cfg.get("rv_mask_prob", 0.5)):
+            x[:, 5] = 0.0
+        elif cfg.get("add_noise", True):
+            x[:, 5] = x[:, 5] + rng.normal(0.0, e_vrad)
+        x[:, 6] = e_dist
+        x[:, 7] = e_pm1
+        x[:, 8] = e_pm2
+        x[:, 9] = e_vrad
         return x
 
     def _augment(self, x: np.ndarray) -> np.ndarray:

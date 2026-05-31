@@ -235,6 +235,19 @@ training_v2:
   beta_mhm: 1.0
   gamma_reg: 0.3
   disable_mhm_for_observable_targets: true
+  # Error domain randomization: draw realistic, VARYING per-star measurement
+  # errors at load time so the e_* feature columns are not near-constant. This
+  # closes the sim-to-real gap that made the detector saturate to p_impact=1.0
+  # on real streams (near-constant features get their normalizer std clamped, so
+  # any real-data offset explodes to ~100 sigma). Ranges match Gaia DR3.
+  error_domain_randomization:
+    enabled: false                   # set true for the sim-to-real-robust retrain
+    seed: 12345
+    add_noise: true                  # add error-consistent observational noise
+    e_dist_kpc: [0.3, 2.0]
+    e_pm_masyr: [0.05, 0.6]
+    e_vrad_kms: [1.0, 8.0]
+    rv_mask_prob: 0.5                # fraction of streams with no spectroscopy (vrad unmeasured)
   # Curriculum learning: domain randomization is baked into generated HDF5 files.
   # This ramp controls extra train-time augmentation and the M_hm loss weight.
   curriculum:

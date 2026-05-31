@@ -423,6 +423,18 @@ def train_gnn_v2(args, cfg: dict) -> None:
     use_orbital = cfg["graph"].get("orbital_features", {}).get("enabled", False)
     log.info("Building raw dataset (orbital_features=%s)...", use_orbital)
 
+    error_dr_cfg = v2_cfg.get("error_domain_randomization") or {}
+    if getattr(args, "error_dr", False):
+        error_dr_cfg = {**error_dr_cfg, "enabled": True}
+    if error_dr_cfg.get("enabled"):
+        log.info("Error domain randomization ENABLED: %s", error_dr_cfg)
+        # The precomputed profile-feature cache was built without error-DR and
+        # would be stale; force on-the-fly profile features for a faithful retrain.
+        if profile_features_path:
+            log.info("  Ignoring stale profile-feature cache (building on the fly).")
+            profile_features_path = None
+    else:
+        error_dr_cfg = None
     dataset_raw = StreamSimDataset(
         sim_dir,
         k_neighbors=cfg["graph"]["k_neighbors"],
@@ -432,6 +444,7 @@ def train_gnn_v2(args, cfg: dict) -> None:
         use_orbital_features=use_orbital,
         downsample_seed=downsample_seed,
         label_schema=label_schema,
+        error_dr=error_dr_cfg,
     )
     if len(dataset_raw) == 0:
         raise RuntimeError(f"No simulations found in {sim_dir}. Run generate_training_data.py first.")
@@ -529,6 +542,7 @@ def train_gnn_v2(args, cfg: dict) -> None:
         profile_features_path=profile_features_path if use_profile_branch else None,
         downsample_seed=downsample_seed,
         label_schema=label_schema,
+        error_dr=error_dr_cfg,
     )
     train_view = CurriculumAugmentView(
         dataset_base,
@@ -1098,6 +1112,10 @@ if __name__ == "__main__":
                         help="Disable lightweight train-time augmentation; generated domain randomization remains.")
     parser.add_argument("--disable-curriculum", action="store_true",
                         help="Disable the V2 curriculum schedule for this run.")
+    parser.add_argument("--error-dr", action="store_true",
+                        help="Enable error domain randomization (realistic varying per-star errors + "
+                             "RV masking) to close the sim-to-real gap. Forces on-the-fly profile "
+                             "features since the cache would be stale.")
     parser.add_argument("--limit-train-examples", type=int, default=None,
                         help="Use a balanced subset of the train split for signal-ladder probes.")
     parser.add_argument("--limit-val-examples", type=int, default=None,
