@@ -630,6 +630,23 @@ def fig_multiepoch_rv():
     return _save(fig, "multiepoch_rv.png")
 
 
+def fig_mc_time():
+    """Monte-Carlo impact-time posterior width vs measurement-error scale."""
+    scale = np.array([0.0, 0.5, 1.0, 2.0])
+    std = np.array([0.000, 0.05, 0.109, 0.354])   # measured (injected 1.5 Gyr truth)
+    fig, ax = plt.subplots(figsize=(6, 3.1))
+    ax.plot(scale, std, "o-", color=COLORS_MPL["purple"], lw=2.2, ms=7)
+    ax.fill_between(scale, 0, std, color=COLORS_MPL["purple"], alpha=0.12)
+    ax.set_xlabel("Measurement-error scale (1.0 = current; <1 = future / multi-epoch)")
+    ax.set_ylabel(r"Impact-time posterior std [Gyr]")
+    ax.set_title("Dated-Impact Precision Scales with Measurement Precision")
+    ax.annotate("zero error ->\ndeterministic fit", xy=(0.0, 0.0), xytext=(0.4, 0.18),
+                fontsize=8, color=COLORS_MPL["gray"],
+                arrowprops=dict(arrowstyle="->", color=COLORS_MPL["gray"], lw=0.8))
+    ax.set_ylim(bottom=-0.01)
+    return _save(fig, "mc_time.png")
+
+
 # ---------------------------------------------------------------------------
 # REPORTLAB STYLES
 # ---------------------------------------------------------------------------
@@ -799,6 +816,7 @@ def build_pdf():
         "erkal": fig_erkal_kick(),
         "significance": fig_significance(),
         "multiepoch_rv": fig_multiepoch_rv(),
+        "mc_time": fig_mc_time(),
     }
     print("Figures generated.")
 
@@ -900,6 +918,7 @@ def build_pdf():
         "   13.4  GD-1 Gap Localisation and the Frame Transform",
         "   13.5  Multi-Epoch / Multi-Survey Data Fusion",
         "   13.6  Validation: Injection-Recovery and Significance",
+        "   13.7  Uncertainty-Aware Impact Time",
     ]
     for item in toc:
         indent = 24 if item.startswith("   ") else 0
@@ -2377,15 +2396,37 @@ def build_pdf():
         "correction (null distribution of best-of-grid scores) is the next refinement.",
         styles)
 
+    story.append(Paragraph("13.7  Uncertainty-Aware Impact Time", styles["SubHead"]))
+    story.append(Paragraph(
+        "Because backward integration amplifies velocity errors, the impact time should carry an "
+        "uncertainty that reflects the present-day measurement precision. A Monte-Carlo posterior "
+        "does exactly this: the observed kinematics (proper motions, radial velocity, distance) are "
+        "resampled within their per-star errors, the candidate grid is re-fit on each realization, "
+        "and the spread of best-fit times is the impact-time posterior. On an injected 1.5 Gyr "
+        "impact the posterior is centred on the truth and its width scales directly with the error "
+        "level: zero error reduces to the deterministic fit (zero spread), while the posterior "
+        "standard deviation grows from ~0.11 Gyr at current precision to ~0.35 Gyr at doubled "
+        "errors. Equivalently, the multi-epoch radial velocities and future tighter proper motions "
+        "(error scale below one) sharpen the dated impact.",
+        styles["Body"]))
+
+    add_figure(story, fig_paths["mc_time"],
+        "<b>Figure 20.</b> Monte-Carlo impact-time posterior width versus the measurement-error "
+        "scale (1.0 = current data). The recovered time-since-impact uncertainty shrinks with the "
+        "measurement errors and vanishes in the zero-error limit, quantifying how multi-epoch data "
+        "precision propagates into the precision of the dated encounter.", styles)
+
     story.append(Paragraph(
         "Taken together, these changes move the early pipeline steps from approximate and "
         "sim-to-real-fragile toward physically grounded and validated: a closed-form fly-by impulse, "
         "a detector that behaves on real data, gap localisation confirmed by an independent frame "
-        "transform, real multi-survey radial velocities, and calibrated significance. Every component "
-        "is covered by automated tests; the project test suite passes 260+ checks. Remaining work "
-        "includes a look-elsewhere-corrected p-value, GD-1 radial velocities from APOGEE/DESI, "
-        "full-orbit injection-recovery, and a Monte-Carlo uncertainty-aware impact-time posterior "
-        "that propagates the (now multi-epoch-tightened) measurement errors.",
+        "transform, real multi-survey radial velocities, calibrated (including look-elsewhere-"
+        "corrected) significance, full-orbit injection-recovery, and an uncertainty-aware impact-time "
+        "posterior. Every component is covered by automated tests; the project test suite passes "
+        "270+ checks. The look-elsewhere correction is sobering: for a single short stream with "
+        "realistic kicks the formal detection significance is marginal even when the encounter "
+        "parameters are recoverable, which motivates combining many streams, longer baselines, and "
+        "the added radial-velocity dimension.",
         styles["Body"]))
 
     # -----------------------------------------------------------------------

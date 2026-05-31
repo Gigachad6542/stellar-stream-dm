@@ -111,6 +111,13 @@ def parse_args() -> argparse.Namespace:
                    help="Also build a look-elsewhere-corrected null: re-run the grid on N no-impact "
                         "realizations and compare the best score to the distribution of best scores. "
                         "Expensive (N x grid); use with --fast.")
+    p.add_argument("--mc-time", type=int, default=0, metavar="N",
+                   help="Monte-Carlo impact-time posterior: resample the observed kinematics within "
+                        "their per-star errors N times, re-fit each, and report the best-fit t_since "
+                        "distribution. Tighter (multi-epoch) errors sharpen it. Expensive (N x grid).")
+    p.add_argument("--mc-error-scale", type=float, default=1.0,
+                   help="Scale factor on the per-star errors for --mc-time (e.g. 0.5 to preview the "
+                        "gain from a future, more precise data release).")
 
     # Refinement
     p.add_argument("--refine", action="store_true",
@@ -427,6 +434,27 @@ def main() -> None:
         with open(sig_dir / "significance.json", "w") as f:
             json.dump(out, f, indent=2)
         log.info("  Significance saved to %s", sig_dir / "significance.json")
+
+    # --- Monte-Carlo uncertainty-aware impact-time posterior ---
+    if args.mc_time > 0:
+        import json
+        log.info("")
+        log.info("=" * 70)
+        log.info("MONTE-CARLO IMPACT-TIME POSTERIOR (%d realizations, error_scale=%.2f)",
+                 args.mc_time, args.mc_error_scale)
+        log.info("=" * 70)
+        post = model.monte_carlo_impact_time(
+            n_realizations=args.mc_time, error_scale=args.mc_error_scale)
+        log.info("  t_since = %.2f  [%.2f, %.2f] Gyr  (68%% width %.2f, std %.2f)",
+                 post.t_since_median, post.t_since_p16, post.t_since_p84,
+                 post.t_since_p84 - post.t_since_p16, post.t_since_std)
+        log.info("  best-fit mass median = 10^%.2f, phi1 median = %.1f",
+                 post.log10_mass_median, post.impact_phi1_median)
+        mc_dir = Path(config.output_dir) / config.stream_name
+        mc_dir.mkdir(parents=True, exist_ok=True)
+        with open(mc_dir / "impact_time_posterior.json", "w") as f:
+            json.dump(post.to_dict(), f, indent=2)
+        log.info("  Impact-time posterior saved to %s", mc_dir / "impact_time_posterior.json")
 
     out_path = model.save_results(results)
 

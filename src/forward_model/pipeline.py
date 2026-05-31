@@ -664,6 +664,53 @@ class TimelineForwardModel:
                  n_realizations, float(np.mean(best_scores)), float(np.std(best_scores, ddof=1)))
         return best_scores
 
+    def monte_carlo_impact_time(
+        self, n_realizations: int = 30, error_scale: float = 1.0, seed0: int = 5000,
+    ):
+        """Monte-Carlo posterior over the best-fit impact time from measurement errors.
+
+        Each realization perturbs the observed kinematics (pm1, pm2, vrad, dist)
+        within their per-star errors (scaled by ``error_scale``), re-runs the
+        candidate grid, and records the best-fit (t_since, mass, phi1). The spread
+        of best-fit t_since is the impact-time posterior driven by the present-day
+        measurement precision: tighter errors (e.g. from multi-epoch fusion, or a
+        smaller ``error_scale``) sharpen it. ``error_scale=0`` reduces to the
+        deterministic best fit (zero spread).
+
+        Returns an ``ImpactTimePosterior``.
+        """
+        from .significance import summarize_impact_time
+
+        grid = self.build_parameter_grid()
+        obs0 = {k: np.array(v) for k, v in self.obs_particles.items()}
+        saved = (self.obs_particles, self.obs_profile, self.obs_gaps)
+        err_map = {"pm1": "e_pm1", "pm2": "e_pm2", "vrad": "e_vrad", "dist": "e_dist"}
+        rng = np.random.default_rng(seed0)
+        t_s, m_s, p_s = [], [], []
+        try:
+            for _ in range(n_realizations):
+                pert = {k: np.array(v) for k, v in obs0.items()}
+                for field, ecol in err_map.items():
+                    if field in pert and ecol in obs0:
+                        e = np.asarray(obs0[ecol], dtype=float)
+                        sig = np.where(np.isfinite(e), e, 0.0) * error_scale
+                        noise = rng.normal(0.0, np.maximum(sig, 0.0))
+                        pert[field] = np.where(np.isfinite(pert[field]),
+                                               pert[field] + noise, pert[field])
+                self.obs_particles = pert
+                # phi1 is unperturbed (astrometric position errors are negligible
+                # vs the bin width), so the density profile/gaps are unchanged.
+                results = self._run_grid_sequential(grid)
+                best = min(results, key=lambda r: r.score.combined)
+                t_s.append(best.t_since_gyr); m_s.append(best.log10_mass); p_s.append(best.impact_phi1)
+        finally:
+            self.obs_particles, self.obs_profile, self.obs_gaps = saved
+        post = summarize_impact_time(t_s, m_s, p_s, error_scale=error_scale)
+        log.info("MC impact time (n=%d, error_scale=%.2f): t_since=%.2f [%.2f, %.2f] Gyr (std %.2f)",
+                 n_realizations, error_scale, post.t_since_median,
+                 post.t_since_p16, post.t_since_p84, post.t_since_std)
+        return post
+
     def evaluate_candidate_multiseed(
         self, params: dict, seeds: list[int],
     ) -> tuple[float, float, list[float]]:

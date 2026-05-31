@@ -36,6 +36,56 @@ import numpy as np
 
 
 @dataclass
+class ImpactTimePosterior:
+    """Monte-Carlo posterior over the best-fit impact time (and mass/phi1).
+
+    Built by resampling the observed stream within its per-star measurement
+    errors and re-fitting each realization, so the spread reflects how the
+    present-day measurement precision (which multi-epoch data tightens) maps
+    into the precision of the recovered time-since-impact.
+    """
+    t_since_samples: list = field(default_factory=list)
+    t_since_median: float = 0.0
+    t_since_p16: float = 0.0
+    t_since_p84: float = 0.0
+    t_since_std: float = 0.0
+    log10_mass_median: float = 0.0
+    impact_phi1_median: float = 0.0
+    n_realizations: int = 0
+    error_scale: float = 1.0
+
+    def to_dict(self) -> dict:
+        return {
+            "t_since_median_gyr": self.t_since_median,
+            "t_since_p16_gyr": self.t_since_p16,
+            "t_since_p84_gyr": self.t_since_p84,
+            "t_since_std_gyr": self.t_since_std,
+            "t_since_68pct_width_gyr": self.t_since_p84 - self.t_since_p16,
+            "log10_mass_median": self.log10_mass_median,
+            "impact_phi1_median": self.impact_phi1_median,
+            "n_realizations": self.n_realizations,
+            "error_scale": self.error_scale,
+            "t_since_samples": self.t_since_samples,
+        }
+
+
+def summarize_impact_time(t_samples, m_samples, phi1_samples, error_scale=1.0) -> ImpactTimePosterior:
+    """Build an ImpactTimePosterior from per-realization best-fit samples."""
+    t = np.asarray(t_samples, dtype=float)
+    return ImpactTimePosterior(
+        t_since_samples=[float(x) for x in t],
+        t_since_median=float(np.median(t)),
+        t_since_p16=float(np.percentile(t, 16)),
+        t_since_p84=float(np.percentile(t, 84)),
+        t_since_std=float(np.std(t)),
+        log10_mass_median=float(np.median(m_samples)),
+        impact_phi1_median=float(np.median(phi1_samples)),
+        n_realizations=len(t),
+        error_scale=float(error_scale),
+    )
+
+
+@dataclass
 class SignificanceResult:
     candidate_score: float
     null_mean: float

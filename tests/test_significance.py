@@ -75,3 +75,39 @@ def test_look_elsewhere_is_more_conservative():
     # Look-elsewhere correction never makes a detection look MORE significant.
     assert le.p_value >= naive.p_value - 1e-9
     assert le.null_mean <= naive.null_mean + 1e-6  # best-of-grid <= single-candidate null
+
+
+@pytest.mark.slow
+def test_monte_carlo_impact_time_tightens_with_precision():
+    """The impact-time posterior must reduce to the deterministic best fit with
+    zero measurement error and broaden as the errors grow -- i.e. better data
+    (smaller errors, as from multi-epoch fusion) sharpens the dated impact."""
+    import os
+    import galstreams
+    from src.forward_model.pipeline import ForwardModelConfig, TimelineForwardModel
+    from src.forward_model.injection import generate_injected_stream
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    mws = galstreams.MWStreams(verbose=False)
+    cfg = ForwardModelConfig(
+        stream_name="GD1", config_path=os.path.join(root, "config", "streams.yaml"),
+        log10_mass_range=(8.5, 9.0), log10_mass_step=0.5,
+        t_since_range=(0.5, 2.5), t_since_step=0.5,
+        impact_phi1_values=[10.0, 20.0, 30.0], n_stars_sim=1200, base_seed=42,
+        use_gnn_scorer=False, use_fast_mode=True, n_workers=1)
+    cfg0 = ForwardModelConfig(stream_name="GD1", config_path=cfg.config_path,
+                              n_stars_sim=1200, base_seed=999, use_fast_mode=True)
+    obs = generate_injected_stream(cfg0, 9.0, 1.5, 20.0, seed=123, mws=mws)
+    n = len(obs["phi1"])
+    obs["e_pm1"] = np.full(n, 0.3); obs["e_pm2"] = np.full(n, 0.3)
+    obs["e_vrad"] = np.full(n, 3.0); obs["e_dist"] = np.full(n, 0.5)
+    model = TimelineForwardModel(cfg); model._mws = mws
+    model.prepare(observed_override=obs)
+
+    p0 = model.monte_carlo_impact_time(n_realizations=8, error_scale=0.0, seed0=5000)
+    p2 = model.monte_carlo_impact_time(n_realizations=8, error_scale=2.0, seed0=5000)
+
+    assert p0.t_since_std == 0.0                       # no noise -> deterministic
+    assert p2.t_since_std >= p0.t_since_std            # more error -> >= spread
+    assert 0.5 <= p0.t_since_median <= 2.5             # within the grid
+    assert p0.t_since_p16 <= p0.t_since_median <= p0.t_since_p84
