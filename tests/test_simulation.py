@@ -397,15 +397,24 @@ class TestSubhaloImpulse:
                                       b_kpc=0.05, v_kms=200.0)
         assert np.all(np.diff(dv) <= 0), "Kick should decrease with distance"
 
-    def test_impulse_kick_capped_at_50(self):
-        """Velocity kick should be capped at 50 km/s."""
-        from src.simulation.subhalo import _hernquist_impulse_kick
-        # Very massive subhalo at tiny distance: kick should still be capped
-        r_perp = np.array([0.001])
+    def test_impulse_kick_bounded_by_plummer(self):
+        """The Plummer impulse is naturally bounded (no ad-hoc cap needed).
+
+        The Erkal+2015 magnitude 2GM/w * d/(d^2+r_s^2) peaks at d = r_s with value
+        GM/(w r_s); even at a tiny perpendicular distance the kick stays finite and
+        below that bound, unlike the old 2GM/(dw) point-mass form which diverged
+        and had to be clipped at 50 km/s.
+        """
+        from src.simulation.subhalo import G_KPC_KMS, _hernquist_impulse_kick
+        M, a, v = 1e8, 0.4, 200.0
+        r_perp = np.array([1e-4, 0.01, a, 1.0])  # includes near-zero distance
         x_par = np.zeros_like(r_perp)
-        dv = _hernquist_impulse_kick(r_perp, x_par, m_solar=1e10, a_kpc=0.001,
-                                      b_kpc=0.001, v_kms=50.0)
-        assert dv[0] <= 50.0, f"Kick should be capped at 50 km/s, got {dv[0]:.1f}"
+        dv = _hernquist_impulse_kick(r_perp, x_par, m_solar=M, a_kpc=a, b_kpc=0.0, v_kms=v)
+        bound = G_KPC_KMS * M / (v * a)          # GM/(w r_s), the analytic maximum
+        assert np.all(np.isfinite(dv))
+        assert np.all(dv <= bound + 1e-9), "Plummer kick must not exceed GM/(w r_s)"
+        # The peak is at d = r_s.
+        assert dv[2] == pytest.approx(bound, rel=1e-6)
 
     def test_impulse_kick_scales_with_mass(self):
         """Heavier subhalo should produce larger kick."""

@@ -212,45 +212,123 @@ def _hernquist_impulse_kick(
     Returns:
         dv_perp: [N] velocity kick perpendicular to fly-by direction [km/s].
     """
-    # Effective distance from the flyby path for each star
-    d_kpc = np.sqrt(b_kpc ** 2 + r_perp_kpc ** 2)  # [N], approximate
+    # Perpendicular distance of each star from the subhalo's straight-line path.
+    d_kpc = np.sqrt(b_kpc ** 2 + r_perp_kpc ** 2)  # [N]
 
-    # Hernquist enclosed mass profile (for finite-extent correction)
-    def m_enc(r):
-        return m_solar * r ** 2 / (r + a_kpc) ** 2
-
-    # Point-mass impulse: delta_v = 2 G M / (b * v)
-    dv_pm = 2.0 * G_KPC_KMS * m_solar / (d_kpc * v_kms)
-
-    # Finite-extent correction (Erkal+2016 Table 1):
-    # correction ~ (1 + (a/b)^2)^{-1/2} for b >> a
-    correction = 1.0 / np.sqrt(1.0 + (a_kpc / d_kpc) ** 2)
-
-    # Erkal+2016 correction for massive subhalos (M > 1e8 Msun)
-    massive_factor = 1.0
-    if m_solar > 1.0e8:
-        # Non-linear correction from Erkal+2016 Table 1 fitting function
-        eps = G_KPC_KMS * m_solar / (b_kpc * v_kms ** 2)
-        massive_factor = 1.0 / (1.0 + 0.5 * eps)
-
-    dv = dv_pm * correction * massive_factor
-
-    # Physical cap: impulse approximation breaks down when dv > v_stream.
-    # The stream velocity dispersion sets the limit; beyond ~50 km/s, the
-    # approximation is invalid and re-integration in the full potential is needed.
-    # Cap per-star kick at 50 km/s to prevent divergence at tiny b_kpc.
-    n_capped = int(np.sum(dv > 50.0))
-    if n_capped > 0:
-        frac_capped = n_capped / len(dv)
-        log.warning(
-            "Impulse approximation: %d/%d stars (%.1f%%) hit 50 km/s cap. "
-            "Encounter has M=%.1e Msun, b=%.3f kpc, v=%.0f km/s. "
-            "Consider full N-body integration for encounters near this regime.",
-            n_capped, len(dv), frac_capped * 100, m_solar, b_kpc, v_kms,
-        )
-    dv = np.minimum(dv, 50.0)
+    # Plummer impulse (Erkal & Belokurov 2015): dv = 2GM/w * d/(d^2 + r_s^2).
+    # This is the magnitude of the proper 3D kick (erkal_plummer_kick) for a star
+    # at perpendicular distance d, and is naturally bounded (max GM/(w r_s) at
+    # d = r_s), so it needs no ad-hoc velocity cap or finite-extent/massive
+    # correction factors. a_kpc plays the role of the Plummer scale radius.
+    dv = 2.0 * G_KPC_KMS * m_solar / v_kms * d_kpc / (d_kpc ** 2 + a_kpc ** 2)
 
     return dv
+
+
+def erkal_plummer_kick(
+    pos_kpc: np.ndarray,       # [N, 3] galactocentric positions
+    x_impact_kpc: np.ndarray,  # [3] stream point at closest approach
+    w_vec_kms: np.ndarray,     # [3] subhalo velocity relative to the stream
+    b_vec_kpc: np.ndarray,     # [3] impact-parameter vector (perp to w, |b|=impact param)
+    m_solar: float,
+    r_s_kpc: float,
+) -> np.ndarray:
+    """Velocity kick [N, 3] km/s from a Plummer subhalo (Erkal & Belokurov 2015).
+
+    For a subhalo of mass M and Plummer scale r_s flying past on a straight line
+    (closest approach at ``x_impact + b_vec``, direction ``w_hat``) in the
+    impulse approximation, a star with 3D perpendicular offset ``p`` from that
+    line receives
+
+        dv = (2 G M / w) * p / (|p|^2 + r_s^2)
+
+    (Erkal & Belokurov 2015, MNRAS 450, 1136). This reduces to the point-mass
+    impulse 2GM/(b w) for r_s -> 0 and is **naturally bounded** (max GM/(w r_s)
+    at |p| = r_s), so no ad-hoc velocity cap is needed. The kick direction is the
+    true 3D perpendicular, and the kick varies star-to-star with |p|, which is
+    what carves and shapes the gap.
+
+    Args:
+        pos_kpc: [N, 3] star positions at the impact epoch.
+        x_impact_kpc: [3] stream position at the encounter.
+        w_vec_kms: [3] subhalo-stream relative velocity (sets w and the line direction).
+        b_vec_kpc: [3] impact-parameter vector (perpendicular to w_vec).
+        m_solar: subhalo mass [Msun].
+        r_s_kpc: Plummer scale radius [kpc].
+
+    Returns:
+        dv: [N, 3] velocity kicks [km/s].
+    """
+    pos = np.atleast_2d(np.asarray(pos_kpc, dtype=float))
+    w_vec = np.asarray(w_vec_kms, dtype=float)
+    w = float(np.linalg.norm(w_vec))
+    if w < 1e-8:
+        return np.zeros_like(pos)
+    w_hat = w_vec / w
+
+    # Closest-approach point of the subhalo line to the stream impact point.
+    p0 = np.asarray(x_impact_kpc, dtype=float) + np.asarray(b_vec_kpc, dtype=float)
+    d = pos - p0[None, :]                      # [N, 3]
+    d_par = d @ w_hat                          # [N]
+    p = d - d_par[:, None] * w_hat[None, :]    # [N, 3] perpendicular component
+    p2 = np.sum(p * p, axis=1)                 # [N]
+
+    # Minus sign: the impulse points TOWARD the subhalo's trajectory (gravity
+    # attracts the star toward the line of closest approach). p points from the
+    # line to the star, so the kick is along -p.
+    coeff = 2.0 * G_KPC_KMS * m_solar / w      # [kpc * km/s]
+    dv = -coeff * p / (p2[:, None] + r_s_kpc ** 2)   # [N, 3] km/s
+    return dv
+
+
+def build_encounter_geometry(
+    stream_tangent: np.ndarray,   # [3] local stream direction (≈ mean velocity dir)
+    r_hat: np.ndarray,            # [3] galactocentric radial unit vector at impact
+    b_kpc: float,
+    w_kms: float,
+    rng: Optional[np.random.Generator] = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Construct (w_vec, b_vec) for an encounter.
+
+    Default (rng=None): a *gap-forming* geometry — the subhalo crosses roughly
+    perpendicular to the stream (so a star's perpendicular distance to the
+    subhalo path grows along the stream, localising the kick at the impact
+    point). With an rng, the subhalo velocity direction is sampled isotropically
+    (Erkal+15 sample the subhalo velocity distribution) and ``b`` takes a random
+    azimuth in the plane perpendicular to ``w``.
+
+    Returns:
+        (w_vec_kms [3], b_vec_kpc [3]).
+    """
+    t = np.asarray(stream_tangent, dtype=float)
+    t = t / max(np.linalg.norm(t), 1e-8)
+    r = np.asarray(r_hat, dtype=float)
+    r = r / max(np.linalg.norm(r), 1e-8)
+
+    if rng is None:
+        # w perpendicular to the stream tangent, in the t-r plane (radial part
+        # orthogonal to t). Falls back to any perpendicular if degenerate.
+        w_hat = r - (r @ t) * t
+        if np.linalg.norm(w_hat) < 1e-3:
+            w_hat = np.cross(t, [0.0, 0.0, 1.0])
+        w_hat /= max(np.linalg.norm(w_hat), 1e-8)
+        # b perpendicular to w (out of the t-w plane).
+        b_hat = np.cross(w_hat, t)
+        b_hat /= max(np.linalg.norm(b_hat), 1e-8)
+    else:
+        # Isotropic subhalo velocity direction.
+        v = rng.normal(size=3)
+        w_hat = v / max(np.linalg.norm(v), 1e-8)
+        # Random azimuth for b in the plane perpendicular to w.
+        e1 = np.cross(w_hat, t)
+        if np.linalg.norm(e1) < 1e-3:
+            e1 = np.cross(w_hat, [0.0, 0.0, 1.0])
+        e1 /= max(np.linalg.norm(e1), 1e-8)
+        e2 = np.cross(w_hat, e1)
+        ang = rng.uniform(0, 2 * np.pi)
+        b_hat = np.cos(ang) * e1 + np.sin(ang) * e2
+
+    return w_kms * w_hat, b_kpc * b_hat
 
 
 def apply_impulse_approximation(

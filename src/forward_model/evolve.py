@@ -39,7 +39,13 @@ from ..simulation.stream_gen import (
     _pos_vel_to_orbit,
     set_progenitor_ic,
 )
-from ..simulation.subhalo import EncounterParams, G_KPC_KMS, scale_radius_from_mass
+from ..simulation.subhalo import (
+    EncounterParams,
+    G_KPC_KMS,
+    build_encounter_geometry,
+    erkal_plummer_kick,
+    scale_radius_from_mass,
+)
 
 log = logging.getLogger(__name__)
 
@@ -401,101 +407,54 @@ def _apply_3d_velocity_kick(
     vel: np.ndarray,           # [N, 3] galactocentric velocities at impact epoch [km/s]
     phi1_stream: np.ndarray,   # [N] stream longitude at impact epoch [deg]
     encounter: EncounterParams,
+    rng: Optional[np.random.Generator] = None,
 ) -> np.ndarray:
-    """Apply 3D velocity kick to particles near the encounter location.
+    """Apply the Erkal & Belokurov 2015 Plummer impulse in galactocentric 3D.
 
-    Uses the Hernquist impulse approximation (Erkal & Belokurov 2015) applied
-    in galactocentric Cartesian coordinates.
-
-    The kick direction is perpendicular to the stream (approximated as
-    perpendicular to the mean velocity of nearby stars). The kick magnitude
-    follows the standard 2GM/(bv) formula with finite-extent correction.
+    The subhalo flies past on a straight line at closest-approach point
+    ``x_impact + b_vec`` with relative velocity ``w_vec``; each star receives
+    ``dv = (2 G M / w) p / (|p|^2 + r_s^2)`` where ``p`` is its true 3D
+    perpendicular offset to that line (see ``subhalo.erkal_plummer_kick``). The
+    kick direction and per-star magnitude come straight from the geometry — no
+    Gaussian-in-phi1 localisation, no fixed kick axis, no 50 km/s cap, and no
+    ad-hoc along-stream fraction (all of which the previous heuristic used).
 
     Args:
-        pos: [N, 3] particle positions in kpc.
-        vel: [N, 3] particle velocities in km/s.
-        phi1_stream: [N] stream phi1 values for proximity determination.
-        encounter: EncounterParams specifying the subhalo.
+        pos/vel: [N, 3] positions/velocities at the impact epoch.
+        phi1_stream: [N] stream phi1 (to locate the impact point on the stream).
+        encounter: EncounterParams (mass, scale_radius, impact_param, flyby_vel, phi1).
+        rng: optional generator; if given, the encounter geometry (subhalo
+            velocity direction + b azimuth) is sampled isotropically, else a
+            gap-forming perpendicular geometry is used.
 
     Returns:
-        vel_kicked: [N, 3] velocities with kick applied.
+        vel_kicked: [N, 3] velocities with the impulse applied.
     """
-    vel_out = vel.copy()
-    n = len(pos)
+    # Locate the impact point on the stream: centroid of stars near encounter phi1.
+    dphi1 = phi1_stream - encounter.encounter_phi1
+    near = np.abs(dphi1) < 5.0
+    if near.sum() < 5:
+        near = np.abs(dphi1) < 15.0
+    if near.sum() < 5:
+        near = np.ones(len(pos), dtype=bool)
 
-    # Distance of each star from the encounter point in stream coordinates
-    dphi1 = phi1_stream - encounter.encounter_phi1  # [N], degrees
+    x_impact = pos[near].mean(axis=0)
+    # Stream spatial tangent ~ mean velocity direction of nearby stars.
+    v_mean = vel[near].mean(axis=0)
+    tangent = v_mean / max(np.linalg.norm(v_mean), 1e-8)
+    r_hat = x_impact / max(np.linalg.norm(x_impact), 1e-8)
 
-    # Impact localisation: Gaussian in phi1 (stars far from encounter get no kick)
-    # Sigma based on the physical impact parameter / distance
-    mean_dist_kpc = max(float(np.median(np.linalg.norm(pos, axis=1))), 1.0)
-    sigma_phi1_deg = np.degrees(encounter.impact_param_kpc / mean_dist_kpc)
-    sigma_phi1_deg = np.clip(sigma_phi1_deg, 0.5, 10.0)
+    w_vec, b_vec = build_encounter_geometry(
+        tangent, r_hat, encounter.impact_param_kpc, encounter.flyby_vel_kms, rng=rng,
+    )
+    dv = erkal_plummer_kick(
+        pos, x_impact, w_vec, b_vec, encounter.mass_solar, encounter.scale_radius_kpc,
+    )
 
-    # Perpendicular distance from flyby path in kpc
-    kpc_per_deg = np.pi / 180.0 * mean_dist_kpc
-    r_perp_kpc = np.abs(dphi1) * kpc_per_deg  # [N]
-
-    # Kick magnitude: 2GM / (d * v) with finite-extent correction
-    d_kpc = np.sqrt(encounter.impact_param_kpc**2 + r_perp_kpc**2)
-    d_kpc = np.maximum(d_kpc, 1e-4)
-
-    dv_mag = 2.0 * G_KPC_KMS * encounter.mass_solar / (d_kpc * encounter.flyby_vel_kms)
-
-    # Finite-extent correction
-    correction = 1.0 / np.sqrt(1.0 + (encounter.scale_radius_kpc / d_kpc) ** 2)
-    dv_mag *= correction
-
-    # Massive subhalo correction
-    if encounter.mass_solar > 1e8:
-        eps = G_KPC_KMS * encounter.mass_solar / (
-            encounter.impact_param_kpc * encounter.flyby_vel_kms**2
-        )
-        dv_mag /= (1.0 + 0.5 * eps)
-
-    # Cap at 50 km/s (impulse approximation validity limit)
-    dv_mag = np.minimum(dv_mag, 50.0)
-
-    # Kick direction: perpendicular to the stream velocity (in the orbital plane).
-    # Use the mean velocity of stars near the encounter as the stream direction.
-    near_mask = np.abs(dphi1) < 3.0 * sigma_phi1_deg
-    if near_mask.sum() > 5:
-        v_stream = vel[near_mask].mean(axis=0)
-    else:
-        v_stream = vel.mean(axis=0)
-
-    v_hat = v_stream / max(np.linalg.norm(v_stream), 1.0)
-
-    # Build perpendicular kick direction (in the orbital plane)
-    # Use the galactocentric radial direction crossed with stream direction
-    r_mean = pos.mean(axis=0)
-    r_hat = r_mean / max(np.linalg.norm(r_mean), 1.0)
-    kick_dir = np.cross(v_hat, r_hat)
-    kick_norm = np.linalg.norm(kick_dir)
-    if kick_norm > 0.01:
-        kick_dir /= kick_norm
-    else:
-        # Fallback: use z-hat cross v_hat
-        kick_dir = np.cross(v_hat, np.array([0.0, 0.0, 1.0]))
-        kick_dir /= max(np.linalg.norm(kick_dir), 1e-6)
-
-    # Apply kick: each star gets dv_mag * kick_dir
-    # The sign alternates for stars on opposite sides of the encounter
-    sign = np.sign(dphi1)
-    # Stars exactly at the encounter get no net along-stream kick (pure transverse)
-    vel_out += dv_mag[:, np.newaxis] * kick_dir[np.newaxis, :] * sign[:, np.newaxis]
-
-    # Also add a radial (along-stream) component that creates the gap
-    # Stars on either side of the encounter get pushed AWAY from it
-    # (this is what creates the density deficit)
-    along_stream_frac = 0.3  # 30% of kick goes along-stream
-    vel_out += along_stream_frac * dv_mag[:, np.newaxis] * v_hat[np.newaxis, :] * sign[:, np.newaxis]
-
-    n_significant = int((dv_mag > 1.0).sum())
-    log.debug("  Kick applied: %d/%d stars received >1 km/s kick (max %.1f km/s)",
-              n_significant, n, float(dv_mag.max()))
-
-    return vel_out
+    dv_mag = np.linalg.norm(dv, axis=1)
+    log.debug("  Erkal kick: %d/%d stars > 1 km/s (max %.1f km/s)",
+              int((dv_mag > 1.0).sum()), len(pos), float(dv_mag.max()))
+    return vel + dv
 
 
 # ---------------------------------------------------------------------------

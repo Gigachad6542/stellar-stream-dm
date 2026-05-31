@@ -18,11 +18,15 @@ def test_injection_recovery_fast_mode_strong_signal():
     from src.forward_model.injection import run_injection_recovery
     from src.forward_model.pipeline import ForwardModelConfig
 
-    truth_mass, truth_time, truth_phi1 = 8.0, 1.5, 20.0
+    # With the physical Erkal+2015 kick (bounded, no 50 km/s cap), realistic
+    # kicks are far smaller than the old cap-saturated values, so a clearly
+    # detectable impact requires a massive perturber. 10^9 Msun is robustly
+    # recovered; 10^8.5 is near the detection threshold for this short stream.
+    truth_mass, truth_time, truth_phi1 = 9.0, 1.5, 20.0
 
     cfg = ForwardModelConfig(
         stream_name="GD1",
-        log10_mass_range=(7.5, 8.5), log10_mass_step=0.5,
+        log10_mass_range=(8.0, 9.0), log10_mass_step=0.5,
         t_since_range=(1.0, 2.0), t_since_step=0.5,
         impact_phi1_values=[5.0, 20.0, 35.0],
         n_stars_sim=1500,
@@ -77,7 +81,7 @@ def test_injection_recovery_offset_phi1_detectable_and_near_truth():
     spacing = 30.0
     cfg = ForwardModelConfig(
         stream_name="GD1",
-        log10_mass_range=(8.0, 8.5), log10_mass_step=0.5,
+        log10_mass_range=(8.5, 9.0), log10_mass_step=0.5,
         t_since_range=(1.0, 2.0), t_since_step=0.5,
         impact_phi1_values=phi1_grid,
         n_stars_sim=1500,
@@ -87,7 +91,7 @@ def test_injection_recovery_offset_phi1_detectable_and_near_truth():
         n_workers=1,
     )
     result, _ = run_injection_recovery(
-        cfg, truth_log10_mass=8.5, truth_t_since_gyr=1.5, truth_phi1=truth_phi1,
+        cfg, truth_log10_mass=9.0, truth_t_since_gyr=1.5, truth_phi1=truth_phi1,
         truth_seed=7,
     )
     assert result.best_beats_null
