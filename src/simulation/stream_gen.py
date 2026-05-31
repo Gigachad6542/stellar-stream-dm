@@ -63,6 +63,80 @@ def _load_stream_config(stream_name: str, config_path: str) -> dict:
 # Progenitor initial conditions
 # ---------------------------------------------------------------------------
 
+def set_progenitor_ic_track6d(
+    stream_name: str,
+    config_path: str = "config/streams.yaml",
+    cache_dir: str | Path = "data/processed",
+    mws=None,
+) -> dict:
+    """Derive progenitor IC DIRECTLY from the galstreams 6D track (no optimiser).
+
+    The galstreams tracks carry literature 6D phase-space (position + velocity),
+    already fit to the real stream's kinematics. Taking the track point nearest
+    the centre of the observed phi1 range and using its galactocentric 6D as the
+    progenitor IC reproduces the stream's true orbit (proper motions, phi2 track)
+    by construction. This replaces the 5D phi2-RMS optimiser, which matched phi2
+    geometry but landed on kinematically-wrong orbits (e.g. GD-1 pm1 -8.9 instead
+    of the correct -12.8). Verified 2026-05-30: track-6D IC reproduces the GD-1
+    track pm1/pm2/phi2 to within measurement scatter.
+    """
+    _IC_CACHE_VERSION = 15  # v15: direct galstreams 6D track IC
+    cache_dir = Path(cache_dir)
+    cache_file = cache_dir / f"{stream_name}_progenitor_ic.json"
+    ic_key = (str(cache_file.resolve()), _IC_CACHE_VERSION)
+    if ic_key in _PROGENITOR_IC_CACHE:
+        return _PROGENITOR_IC_CACHE[ic_key]
+    if cache_file.exists():
+        with open(cache_file) as f:
+            d = json.load(f)
+        if d.get("_cache_version") == _IC_CACHE_VERSION and d.get("_ic_method") == "track6d":
+            _PROGENITOR_IC_CACHE[ic_key] = d
+            return d
+
+    if mws is None:
+        import galstreams  # noqa: PLC0415
+        mws = galstreams.MWStreams(verbose=False)
+    sc = _load_stream_config(stream_name, config_path)
+    track = mws[sc["galstreams_key"]]
+    tr = track.track
+    frame = track.stream_frame
+
+    gcf = coord.Galactocentric(galcen_distance=_RO * u.kpc, z_sun=0.0208 * u.kpc)
+    gc = tr.transform_to(gcf)
+    trsf = tr.transform_to(frame)
+    tphi1 = (np.array(trsf.phi1.deg) + 180.0) % 360.0 - 180.0
+    phi1_min, phi1_max = sc["phi1_range_deg"]
+    centre = 0.5 * (phi1_min + phi1_max)
+    # Restrict to the observed phi1 window, pick the point nearest its centre.
+    in_win = (tphi1 >= phi1_min) & (tphi1 <= phi1_max)
+    idx_all = np.where(in_win)[0] if in_win.any() else np.arange(len(tphi1))
+    j = idx_all[int(np.argmin(np.abs(tphi1[idx_all] - centre)))]
+
+    pos = np.array([gc.x[j].to(u.kpc).value, gc.y[j].to(u.kpc).value, gc.z[j].to(u.kpc).value])
+    try:
+        cd = gc.cartesian.differentials["s"]
+        vel = np.array([cd.d_x[j].to(u.km / u.s).value,
+                        cd.d_y[j].to(u.km / u.s).value,
+                        cd.d_z[j].to(u.km / u.s).value])
+        if not np.all(np.isfinite(vel)) or np.linalg.norm(vel) < 1.0:
+            raise ValueError("no usable track velocity")
+    except (KeyError, AttributeError, ValueError) as e:
+        log.warning("track6d IC for %s: no 6D velocity (%s); falling back to optimiser", stream_name, e)
+        return set_progenitor_ic(stream_name, None, config_path, cache_dir, mws=mws)
+
+    d = {
+        "pos_kpc": pos.tolist(), "vel_kms": vel.tolist(),
+        "_cache_version": _IC_CACHE_VERSION, "_ic_method": "track6d",
+        "_track_phi1_deg": float(tphi1[j]),
+    }
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    with open(cache_file, "w") as f:
+        json.dump(d, f)
+    _PROGENITOR_IC_CACHE[ic_key] = d
+    log.info("track6d IC for %s at phi1=%.1f: |v|=%.1f km/s", stream_name, tphi1[j], np.linalg.norm(vel))
+    return d
+
+
 def set_progenitor_ic(
     stream_name: str,
     potential: list,
@@ -73,15 +147,14 @@ def set_progenitor_ic(
 ) -> dict:
     """Derive progenitor initial conditions from galstreams track.
 
+    NOTE (2026-05-30): the 5D phi2-RMS optimiser below was found to produce
+    kinematically-wrong orbits (matches phi2 geometry, wrong proper motions).
+    ``set_progenitor_ic_track6d`` (direct 6D track IC) is now the default used by
+    ``generate_stream``. This optimiser is retained as a fallback for tracks that
+    lack 6D velocities.
+
     Returns a dict with keys ``pos_kpc`` [3] and ``vel_kms`` [3]
     (galactocentric Cartesian, present-day).  Result is cached to JSON.
-
-    v3 optimiser improvements over v2:
-        - 5D search: track position fraction + 2 velocity angles + velocity
-          magnitude scaling + position offset along orbit normal
-        - Global optimiser (differential_evolution) instead of Nelder-Mead
-        - 20 phi1 bins (was 10) for finer offset measurement
-        - Target: RMS phi2 offset < 0.5 deg (was ~2 deg)
     """
     # JAX-optimised ICs use a separate cache file and version because the
     # tabulated force field is slightly different from galpy's exact potential.
@@ -627,13 +700,16 @@ def generate_stream(
     sc  = _load_stream_config(stream_name, config_path)
 
     if stream_age_gyr is None:
-        # Use disruption_age_gyr (time over which the progenitor has been
-        # losing stars) if available.  This is physically more correct than
-        # isochrone_age_gyr (the stellar population age) for the particle
-        # spray timescale: e.g. GD-1 stars are 12.5 Gyr old but disruption
-        # happened over only ~3 Gyr (Webb & Bovy 2019).
-        stream_age_gyr = sc.get("disruption_age_gyr",
-                                sc.get("isochrone_age_gyr", 10.0))
+        # spray_age_gyr is a LENGTH-CALIBRATION parameter: the effective spray
+        # timescale tuned so the generated stream matches the observed angular
+        # extent (the simple Fardal spray under-produces length per unit time,
+        # so this is larger than the literature "recent disruption rate" age).
+        # It is kept separate from disruption_age_gyr (the physical timescale the
+        # forward model uses to cap time-since-impact). Falls back to
+        # disruption_age_gyr, then isochrone_age_gyr.
+        stream_age_gyr = sc.get("spray_age_gyr",
+                                sc.get("disruption_age_gyr",
+                                       sc.get("isochrone_age_gyr", 10.0)))
 
     # ── Detect JAX mode early ─────────────────────────────────────────
     # JAX mode uses the tabulated force field for ALL orbit calculations
@@ -654,10 +730,14 @@ def generate_stream(
             _use_jax = False
 
     if progenitor_ic is None:
-        progenitor_ic = set_progenitor_ic(
-            stream_name, potential, config_path, cache_dir, mws=mws,
-            use_jax=_use_jax,
-        )
+        if _use_jax:
+            progenitor_ic = set_progenitor_ic(
+                stream_name, potential, config_path, cache_dir, mws=mws, use_jax=True)
+        else:
+            # Direct 6D track IC (correct kinematics) — replaces the phi2-RMS
+            # optimiser that produced wrong-orbit streams.
+            progenitor_ic = set_progenitor_ic_track6d(
+                stream_name, config_path, cache_dir, mws=mws)
 
     pos0 = np.array(progenitor_ic["pos_kpc"])   # [3]
     vel0 = np.array(progenitor_ic["vel_kms"])    # [3]

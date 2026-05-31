@@ -37,7 +37,7 @@ from ..simulation.stream_gen import (
     _galactocentric_to_stream_coords,
     _load_stream_config,
     _pos_vel_to_orbit,
-    set_progenitor_ic,
+    set_progenitor_ic_track6d,
 )
 from ..simulation.subhalo import (
     EncounterParams,
@@ -114,8 +114,8 @@ def generate_perturbed_stream_evolved(
         t_impact = stream_age_gyr * 0.95
 
     if progenitor_ic is None:
-        progenitor_ic = set_progenitor_ic(
-            stream_name, potential, config_path, cache_dir, mws=mws,
+        progenitor_ic = set_progenitor_ic_track6d(
+            stream_name, config_path, cache_dir, mws=mws,
         )
 
     pos0 = np.array(progenitor_ic["pos_kpc"])   # [3]
@@ -535,8 +535,8 @@ def generate_perturbed_stream_multi_evolved(
              encounters_sorted[-1].t_since_impact_gyr)
 
     if progenitor_ic is None:
-        progenitor_ic = set_progenitor_ic(
-            stream_name, potential, config_path, cache_dir, mws=mws,
+        progenitor_ic = set_progenitor_ic_track6d(
+            stream_name, config_path, cache_dir, mws=mws,
         )
 
     pos0 = np.array(progenitor_ic["pos_kpc"])
