@@ -97,3 +97,34 @@ def test_injection_recovery_offset_phi1_detectable_and_near_truth():
     assert result.best_beats_null
     assert result.recovered_phi1 in phi1_grid              # a real grid point
     assert abs(result.recovered_phi1 - truth_phi1) <= spacing + 1e-6
+
+
+@pytest.mark.slow
+def test_injection_recovery_full_orbit():
+    """Validate the physically-correct full orbit-integrated path end-to-end.
+
+    Each candidate sprays particles, integrates to the impact epoch, applies the
+    Erkal kick, and integrates forward to today (no impulse shortcut). On a coarse
+    grid a 10^9 impact is recovered within one grid step on each axis and beats
+    the unperturbed null.
+    """
+    from src.forward_model.injection import run_injection_recovery
+    from src.forward_model.pipeline import ForwardModelConfig
+
+    cfg = ForwardModelConfig(
+        stream_name="GD1",
+        log10_mass_range=(8.5, 9.0), log10_mass_step=0.5,
+        t_since_range=(1.0, 1.5), t_since_step=0.5,
+        impact_phi1_values=[10.0, 20.0, 30.0],
+        n_stars_sim=1200, base_seed=42,
+        use_gnn_scorer=False,
+        use_fast_mode=False,          # full orbit integration
+        n_workers=1,
+    )
+    result, _ = run_injection_recovery(
+        cfg, truth_log10_mass=9.0, truth_t_since_gyr=1.5, truth_phi1=20.0, truth_seed=123,
+    )
+    assert not result.fast_mode
+    assert result.best_beats_null
+    assert abs(result.mass_error_dex) <= 0.5 + 1e-6
+    assert abs(result.phi1_error_deg) <= 10.0 + 1e-6     # one phi1 grid step
