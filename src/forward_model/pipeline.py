@@ -627,6 +627,43 @@ class TimelineForwardModel:
                  n_realizations, float(np.mean(scores)), float(np.std(scores, ddof=1)))
         return scores
 
+    def build_lookelsewhere_null(
+        self, n_realizations: int = 10, seed0: int = 3000,
+    ) -> list[float]:
+        """Null distribution of the *best-of-grid* score (look-elsewhere correction).
+
+        For each no-impact realization, an unperturbed stream plays the role of
+        the observed data and the FULL candidate grid is scored against it; the
+        best score is recorded. Because we always report the best of many
+        candidates, the real best score must be compared to this distribution of
+        best scores (not to a single-candidate null) for a correctly calibrated
+        p-value. Expensive (n x grid); intended for fast mode.
+        """
+        grid = self.build_parameter_grid()
+        saved = (self.obs_particles, self.obs_profile, self.obs_gaps)
+        best_scores = []
+        try:
+            for i in range(n_realizations):
+                stream = self._generate_base_stream(seed=seed0 + 100 * i)
+                self.obs_particles = {
+                    "phi1": stream.phi1, "phi2": stream.phi2,
+                    "pm1": stream.pm1, "pm2": stream.pm2,
+                    "dist": stream.dist, "vrad": stream.vrad,
+                    "membership_prob": np.ones(len(stream.phi1)),
+                }
+                self.obs_profile = compute_density_profile(
+                    stream.phi1, self.phi1_range, bin_width_deg=self.cfg.density_bin_width_deg)
+                self.obs_gaps = detect_gaps(
+                    self.obs_profile, min_depth=self.cfg.gap_detection_min_depth,
+                    min_significance=self.cfg.gap_detection_min_significance)
+                results = self._run_grid_sequential(grid)
+                best_scores.append(float(min(r.score.combined for r in results)))
+        finally:
+            self.obs_particles, self.obs_profile, self.obs_gaps = saved
+        log.info("Look-elsewhere null (%d realizations): best-score mean=%.4f std=%.4f",
+                 n_realizations, float(np.mean(best_scores)), float(np.std(best_scores, ddof=1)))
+        return best_scores
+
     def evaluate_candidate_multiseed(
         self, params: dict, seeds: list[int],
     ) -> tuple[float, float, list[float]]:

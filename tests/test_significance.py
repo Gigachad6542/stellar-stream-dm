@@ -40,3 +40,38 @@ class TestComputeSignificance:
     def test_empty_null_raises(self):
         with pytest.raises(ValueError):
             compute_significance(1.0, [])
+
+
+@pytest.mark.slow
+def test_look_elsewhere_is_more_conservative():
+    """The look-elsewhere (best-of-grid) null must give a p-value no smaller than
+    the naive unperturbed null for the same candidate, because fitting the best of
+    many candidates to no-impact noise already achieves a low score."""
+    import os
+    import galstreams
+    from src.forward_model.pipeline import ForwardModelConfig, TimelineForwardModel
+    from src.forward_model.injection import generate_injected_stream
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    mws = galstreams.MWStreams(verbose=False)
+    cfg = ForwardModelConfig(
+        stream_name="GD1", config_path=os.path.join(root, "config", "streams.yaml"),
+        log10_mass_range=(8.0, 9.0), log10_mass_step=0.5,
+        t_since_range=(1.0, 2.0), t_since_step=0.5,
+        impact_phi1_values=[5.0, 20.0, 35.0], n_stars_sim=1500, base_seed=42,
+        use_gnn_scorer=False, use_fast_mode=True, n_workers=1)
+    cfg0 = ForwardModelConfig(stream_name="GD1", config_path=cfg.config_path,
+                              n_stars_sim=1500, base_seed=999, use_fast_mode=True)
+    obs = generate_injected_stream(cfg0, 9.0, 1.5, 20.0, seed=123, mws=mws)
+    model = TimelineForwardModel(cfg); model._mws = mws
+    model.prepare(observed_override=obs)
+    results = model.run_grid()
+    best = results[0].score.combined
+
+    naive = compute_significance(best, model.build_null_distribution(12, seed0=2000))
+    le = compute_significance(best, model.build_lookelsewhere_null(8, seed0=3000))
+
+    assert len(le.null_scores) == 8
+    # Look-elsewhere correction never makes a detection look MORE significant.
+    assert le.p_value >= naive.p_value - 1e-9
+    assert le.null_mean <= naive.null_mean + 1e-6  # best-of-grid <= single-candidate null

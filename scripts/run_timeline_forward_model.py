@@ -107,6 +107,10 @@ def parse_args() -> argparse.Namespace:
                         "the seed-averaged score (removes sampling noise). Default 1 (no averaging).")
     p.add_argument("--significance-seed0", type=int, default=1000,
                    help="First seed for the null-distribution realizations.")
+    p.add_argument("--look-elsewhere", type=int, default=0, metavar="N",
+                   help="Also build a look-elsewhere-corrected null: re-run the grid on N no-impact "
+                        "realizations and compare the best score to the distribution of best scores. "
+                        "Expensive (N x grid); use with --fast.")
 
     # Refinement
     p.add_argument("--refine", action="store_true",
@@ -404,10 +408,24 @@ def main() -> None:
         else:
             log.info("  Significant at p=%.3f: the best fit is better than the no-impact "
                      "baseline beyond its scatter.", significance.p_value)
+        out = {"unperturbed_null": significance.to_dict()}
+
+        # Look-elsewhere-corrected p-value: compare the best score to the
+        # distribution of best-of-grid scores under the no-impact null.
+        if args.look_elsewhere > 0:
+            log.info("  Building look-elsewhere null (%d grid re-runs)...", args.look_elsewhere)
+            le_null = model.build_lookelsewhere_null(n_realizations=args.look_elsewhere)
+            le_sig = compute_significance(results[0].score.combined, le_null)
+            log.info("  Look-elsewhere: best-of-grid null mean=%.4f std=%.4f",
+                     le_sig.null_mean, le_sig.null_std)
+            log.info("  -> corrected z = %.2f sigma, corrected p = %.3f",
+                     le_sig.z_score, le_sig.p_value)
+            out["look_elsewhere_null"] = le_sig.to_dict()
+
         sig_dir = Path(config.output_dir) / config.stream_name
         sig_dir.mkdir(parents=True, exist_ok=True)
         with open(sig_dir / "significance.json", "w") as f:
-            json.dump(significance.to_dict(), f, indent=2)
+            json.dump(out, f, indent=2)
         log.info("  Significance saved to %s", sig_dir / "significance.json")
 
     out_path = model.save_results(results)
