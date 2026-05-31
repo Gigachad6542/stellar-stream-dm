@@ -38,8 +38,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--h5", type=str, default="data/processed/streams.h5")
     p.add_argument("--sources", type=str, nargs="+",
                    default=["gaia_rvs", "s5"],
-                   choices=["gaia_rvs", "s5", "gaia_dr2"],
+                   choices=["gaia_rvs", "s5", "gaia_dr2", "apogee"],
                    help="Which real catalogs to fetch and fuse.")
+    p.add_argument("--config", type=str, default="config/streams.yaml",
+                   help="Stream config (for the galstreams frame used by APOGEE sky-box query).")
     p.add_argument("--max-stars", type=int, default=None,
                    help="Subsample members before fetching (for quick tests).")
     p.add_argument("--cache-dir", type=str, default="data/raw/multi_epoch")
@@ -55,8 +57,8 @@ def main() -> None:
     log = logging.getLogger("fetch_multi_epoch")
 
     from src.data.multi_epoch import (
-        FusionReport, fetch_gaia_dr2_proper_motions, fetch_gaia_dr3_rvs,
-        fetch_s5_rvs, fuse_radial_velocities, pm_error_scaling_factor,
+        FusionReport, fetch_apogee_rvs, fetch_gaia_dr2_proper_motions,
+        fetch_gaia_dr3_rvs, fetch_s5_rvs, fuse_radial_velocities, pm_error_scaling_factor,
     )
 
     stream = args.stream
@@ -85,6 +87,26 @@ def main() -> None:
         s5 = fetch_s5_rvs(cache_path=cache_dir / "s5_dr1.npz")
         if s5 is not None:
             rv_cats.append(s5)
+    if "apogee" in args.sources:
+        # APOGEE is all-sky; query the stream's RA/Dec box (via its galstreams
+        # frame) and match by Gaia id.
+        import astropy.units as u
+        import galstreams
+        import yaml as _yaml
+        from astropy.coordinates import SkyCoord
+        with open(args.config) as cf:
+            scfg = _yaml.safe_load(cf)["streams"][stream]
+        frame = galstreams.MWStreams(verbose=False)[scfg["galstreams_key"]].stream_frame
+        icrs = SkyCoord(phi1=members["phi1"] * u.deg, phi2=members["phi2"] * u.deg,
+                        frame=frame).icrs
+        ra, dec = icrs.ra.deg, icrs.dec.deg
+        pad = 0.5
+        apo = fetch_apogee_rvs(
+            sids, (float(ra.min() - pad), float(ra.max() + pad)),
+            (float(dec.min() - pad), float(dec.max() + pad)),
+            cache_path=cache_dir / f"{stream}_apogee.npz")
+        if apo is not None and len(apo.source_ids):
+            rv_cats.append(apo)
 
     # --- Fuse radial velocities ---
     rv, e_rv, rv_mask, per_survey = fuse_radial_velocities(sids, rv_cats)

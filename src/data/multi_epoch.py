@@ -307,6 +307,72 @@ def fetch_s5_rvs(
     )
 
 
+APOGEE_VIZIER_CATALOG = "III/286/catalog"   # APOGEE-2 DR17 allStar (Abdurro'uf+ 2022)
+
+
+def fetch_apogee_rvs(
+    source_ids: np.ndarray,
+    ra_range: tuple[float, float],
+    dec_range: tuple[float, float],
+    cache_path: Optional[str | Path] = None,
+) -> Optional[RadialVelocityData]:
+    """Fetch APOGEE DR17 heliocentric RVs for members in a sky box, by Gaia id.
+
+    APOGEE (VizieR ``III/286``) provides ``GaiaEDR3`` ids and heliocentric RV
+    (``HRV``, error ``e_HRV``). Northern streams such as GD-1 fall outside the
+    S5 footprint but are partially covered by APOGEE. The all-sky catalog is
+    queried within the stream's RA/Dec bounding box, then matched to the member
+    ``source_ids`` (Gaia EDR3 ids equal DR3 ids). Returns None on failure.
+    """
+    cache_path = Path(cache_path) if cache_path else None
+    if cache_path and cache_path.exists():
+        d = np.load(cache_path)
+        log.info("Loaded cached APOGEE RVs (%d stars) from %s", len(d["source_id"]), cache_path)
+        return RadialVelocityData(
+            source_ids=d["source_id"], rv_km_s=d["rv"], rv_error_km_s=d["e_rv"],
+            survey="APOGEE", snr=np.full(len(d["source_id"]), np.nan))
+
+    try:
+        from astroquery.vizier import Vizier
+        v = Vizier(columns=["GaiaEDR3", "HRV", "e_HRV"], row_limit=-1)
+        v.column_filters = {
+            "RAJ2000": f"{ra_range[0]:.3f}..{ra_range[1]:.3f}",
+            "DEJ2000": f"{dec_range[0]:.3f}..{dec_range[1]:.3f}",
+            "HRV": "!=",
+        }
+        cats = v.get_catalogs(APOGEE_VIZIER_CATALOG)
+    except Exception as e:
+        log.warning("APOGEE fetch failed (VizieR): %s", e)
+        return None
+    if not len(cats):
+        return None
+    tab = cats[0]
+
+    member = set(int(s) for s in np.asarray(source_ids).ravel())
+    out_id, out_rv, out_e = [], [], []
+    for row in tab:
+        gid = str(row["GaiaEDR3"]).strip()
+        if not gid or gid in ("--", "0"):
+            continue
+        gid = int(gid)
+        if gid not in member:
+            continue
+        rv = float(row["HRV"])
+        if not np.isfinite(rv) or abs(rv) > 600.0:
+            continue
+        e = float(row["e_HRV"]) if ("e_HRV" in tab.colnames and np.isfinite(row["e_HRV"])) else 1.0
+        out_id.append(gid); out_rv.append(rv); out_e.append(max(e, 0.1))
+
+    sid = np.array(out_id, dtype=np.int64)
+    rv = np.array(out_rv); e = np.array(out_e)
+    log.info("APOGEE DR17: %d / %d members matched with RV", len(sid), len(member))
+    if cache_path and len(sid):
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(cache_path, source_id=sid, rv=rv, e_rv=e)
+    return RadialVelocityData(source_ids=sid, rv_km_s=rv, rv_error_km_s=e,
+                              survey="APOGEE", snr=np.full(len(sid), np.nan))
+
+
 # ---------------------------------------------------------------------------
 # Fusion across surveys, aligned to a stream's members
 # ---------------------------------------------------------------------------
