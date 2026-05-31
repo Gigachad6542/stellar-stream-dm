@@ -711,6 +711,69 @@ class TimelineForwardModel:
                  post.t_since_p16, post.t_since_p84, post.t_since_std)
         return post
 
+    def build_data_null(
+        self, n_realizations: int = 60, smooth_deg: float = 4.0, seed0: int = 4000,
+    ) -> list[float]:
+        """Data-driven best-of-grid null: refit the grid to *gap-removed real data*.
+
+        The synthetic null (build_lookelsewhere_null) is invalid for REAL data
+        because real observations carry a large sim-to-real offset: the best
+        candidate fits real data far worse than it fits a synthetic no-impact
+        stream. Instead we build the null from the real stream itself with any
+        *localized* perturbations removed, while preserving the broad envelope,
+        the marginal kinematics, and the same sim-to-real offset:
+
+          * phi1 is resampled from the heavily smoothed observed density (fills
+            gaps without broadening the stream), and
+          * pm1/pm2/vrad are shuffled across stars (destroys any phi1-localized
+            kinematic kink while keeping their marginal distributions).
+
+        The real (un-scrambled) best-of-grid score compared to this distribution
+        is a look-elsewhere-aware significance for whether the real stream has
+        *localized* gap/kinematic structure beyond a smooth stream. This is cheap
+        (no stream regeneration), so n_realizations can be large for a meaningful
+        empirical p-value.
+        """
+        from scipy.ndimage import gaussian_filter1d
+
+        grid = self.build_parameter_grid()
+        obs0 = {k: np.array(v) for k, v in self.obs_particles.items()}
+        saved = (self.obs_particles, self.obs_profile, self.obs_gaps)
+        n = len(obs0["phi1"])
+        # Smooth the observed density into a gap-free envelope to sample phi1 from.
+        prof = compute_density_profile(
+            obs0["phi1"], self.phi1_range, bin_width_deg=self.cfg.density_bin_width_deg,
+            weights=obs0.get("membership_prob"))
+        bw = prof.bin_width_deg
+        smooth = gaussian_filter1d(prof.counts.astype(float),
+                                   sigma=max(smooth_deg / max(bw, 1e-6), 1.0), mode="nearest")
+        smooth = np.maximum(smooth, 1e-9)
+        pdf = smooth / smooth.sum()
+        centers = prof.bin_centers
+        rng = np.random.default_rng(seed0)
+        best_scores = []
+        try:
+            for _ in range(n_realizations):
+                bins = rng.choice(len(centers), size=n, p=pdf)
+                phi1 = centers[bins] + rng.uniform(-bw / 2, bw / 2, size=n)
+                pert = {**obs0, "phi1": phi1}
+                for fld in ("pm1", "pm2", "vrad"):
+                    if fld in pert:
+                        pert[fld] = rng.permutation(obs0[fld])
+                self.obs_particles = pert
+                self.obs_profile = compute_density_profile(
+                    phi1, self.phi1_range, bin_width_deg=self.cfg.density_bin_width_deg)
+                self.obs_gaps = detect_gaps(
+                    self.obs_profile, min_depth=self.cfg.gap_detection_min_depth,
+                    min_significance=self.cfg.gap_detection_min_significance)
+                results = self._run_grid_sequential(grid)
+                best_scores.append(float(min(r.score.combined for r in results)))
+        finally:
+            self.obs_particles, self.obs_profile, self.obs_gaps = saved
+        log.info("Data-driven null (%d realizations): best-of-grid mean=%.4f std=%.4f",
+                 n_realizations, float(np.mean(best_scores)), float(np.std(best_scores, ddof=1)))
+        return best_scores
+
     def evaluate_candidate_multiseed(
         self, params: dict, seeds: list[int],
     ) -> tuple[float, float, list[float]]:
