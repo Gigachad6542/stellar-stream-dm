@@ -63,3 +63,9 @@ Thumbs.db
 # Misc
 *.log
 *.bak
+
+# Project scratch: regeneration/run logs written to the repo root, and the
+# temporary commit-message files used to work around PowerShell here-strings.
+logs_*.txt
+_commitmsg.tmp
+*.tmp

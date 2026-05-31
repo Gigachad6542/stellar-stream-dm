@@ -11,24 +11,26 @@ stellar-stream-dm/
 │   ├── streams.yaml           #   Stream-specific parameters (phi1 ranges, distances, etc.)
 │   ├── dm_models.yaml         #   Mass functions and inference priors per DM model
 │   └── training.yaml          #   Hyperparameters, simulation budget, paths
-├── src/                       # Source code (5 subpackages)
-│   ├── data/                  #   Gaia queries, stream processing, PyG datasets
+├── src/                       # Source code (6 subpackages)
+│   ├── data/                  #   Gaia queries, stream processing, multi-epoch fusion, PyG datasets
 │   ├── simulation/            #   MW potential, stream generation, subhalo/baryonic perturbations
 │   ├── models/                #   GNN encoder (GINEConv), baseline CNN, transformer
 │   ├── inference/             #   SBI pipeline (SNPE-C), posteriors, calibration
+│   ├── forward_model/         #   Timeline: detection→handoff, rewind/re-impact, significance, multistream
 │   └── analysis/              #   Gap catalog, model comparison, visualization
-├── scripts/                   # Runnable entry points
-│   ├── train.py               #   Train GNN or baseline CNN
-│   ├── train_sbi.py           #   Train SBI posteriors for each DM model
-│   ├── run_inference.py       #   Apply trained model to real streams
-│   ├── combine_posteriors.py  #   Multi-stream posterior combination
-│   ├── run_analysis.py        #   Generate gap catalog and figures
-│   ├── demo_forward_pass.py   #   Pass real data through trained model (demo)
-│   └── generate_training_data.py  # Parallel simulation generation
-├── tests/                     # Unit tests (113 tests, pytest)
-│   ├── test_simulation.py     #   Potential, mass functions, impulse, noise (55 tests)
-│   ├── test_model.py          #   GNN, CNN, transformer, checkpoints (30 tests)
-│   ├── test_inference.py      #   Priors, posteriors, gaps, Bayes factors (30 tests)
+├── scripts/                   # Runnable entry points — see scripts/README.md for the full index
+│   ├── generate_training_data.py  # Parallel simulation generation
+│   ├── train_v2.py            #   Train the v2 GNN detector
+│   ├── calibrate_detector.py  #   Temperature-calibrate the detector
+│   ├── run_timeline_forward_model.py  # Timeline rewind/re-impact/score pipeline
+│   ├── run_injection_recovery.py      # Injection-recovery test
+│   └── run_multistream_analysis.py    # Multi-stream joint significance
+├── tests/                     # Unit tests (~289 tests across 13 files, pytest)
+│   ├── test_simulation.py     #   Potential, mass functions, impulse, noise
+│   ├── test_model.py          #   GNN, CNN, transformer, checkpoints
+│   ├── test_inference.py      #   Priors, posteriors, gaps, Bayes factors
+│   ├── test_forward_model.py / test_detection.py / test_significance.py  # Timeline
+│   ├── test_erkal_kick.py / test_multistream.py / test_multi_epoch.py / test_gd1_frames.py
 │   └── conftest.py            #   Pytest fixtures and --run-slow flag
 ├── notebooks/                 # Jupyter notebooks (exploration + results)
 │   ├── 01_explore_streams.ipynb
@@ -38,8 +40,8 @@ stellar-stream-dm/
 │   └── 05_results_summary.ipynb
 ├── data/                      # Data files (gitignored — generate locally)
 │   ├── raw/                   #   Gaia FITS downloads
-│   ├── processed/             #   Standardized HDF5 (streams.h5)
-│   └── simulations/           #   Training simulations (82 HDF5 chunks)
+│   ├── processed/             #   Standardized HDF5 (streams.h5, *_clean.h5)
+│   └── simulations_v3_track6d/  # Training simulations (regenerated with track6d IC)
 ├── checkpoints/               # Trained model weights (gitignored)
 ├── outputs/                   # Analysis outputs: CSV, PDF figures (gitignored)
 ├── logs/                      # Build logs, batch scripts, stale data (gitignored)
@@ -100,12 +102,16 @@ python -c "import galstreams, sbi, torch_geometric; print('All imports OK')"
 
 ## Implementation sequence
 
-1. **Data** — Query Gaia DR3 for each stream, process to HDF5
-2. **Simulations** — Generate 40K training simulations (benchmark first)
+1. **Data** — Query Gaia DR3 for each stream, process to HDF5; fuse real multi-epoch RVs/PMs (`fetch_multi_epoch.py`)
+2. **Simulations** — Generate training simulations with the track6d-IC generator (benchmark first)
 3. **Baseline** — Train 1D CNN on density profiles (must reach >70% accuracy)
 4. **GNN** — Train GINEConv encoder on phase-space graphs (must reach >80%)
 5. **SBI** — Wire GNN embeddings to SNPE-C; run SBC calibration tests
 6. **Inference** — Apply to real streams; combine posteriors
+7. **Timeline forward model** — Detect a probable impact, estimate its time, rewind the
+   stream, re-impact on a grid, re-evolve to present, and score against the real stream;
+   assess significance vs null and combine across streams (`run_timeline_forward_model.py`,
+   `run_multistream_analysis.py`)
 
 ## Quickstart (exploration)
 
@@ -113,11 +119,11 @@ python -c "import galstreams, sbi, torch_geometric; print('All imports OK')"
 # Check stream data
 jupyter lab notebooks/01_explore_streams.ipynb
 
-# Benchmark simulations (100 jobs)
-python scripts/generate_training_data.py --benchmark 100
+# Benchmark simulations (estimate runtime)
+python scripts/generate_training_data.py --benchmark 160
 
-# Full simulation run (~24 hours)
-python scripts/generate_training_data.py --n-sims 10000
+# Full simulation run (BLAS threads auto-pinned; n_jobs defaults to physical cores)
+python scripts/generate_training_data.py --n-sims 25000
 
 # Train GNN
 python scripts/train.py --model gnn --epochs 200
@@ -128,6 +134,21 @@ python scripts/run_inference.py --stream GD1 --all-models
 # Combine posteriors
 python scripts/combine_posteriors.py
 ```
+
+### Timeline forward model
+
+```bash
+# Detect → estimate time → rewind → re-impact grid → re-evolve → score vs real
+python scripts/run_timeline_forward_model.py --stream GD1
+
+# Injection-recovery validation
+python scripts/run_injection_recovery.py --stream GD1
+
+# Joint significance across all target streams
+python scripts/run_multistream_analysis.py
+```
+
+See `scripts/README.md` for the complete, categorized list of entry points.
 
 ## Tests
 
