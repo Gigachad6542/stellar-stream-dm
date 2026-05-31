@@ -39,3 +39,23 @@ Progress in `logs_regen_v3.txt`. Detached background process.
 2. Re-train detector (`train_v2.py --error-dr`) and re-calibrate.
 3. Re-run multi-stream joint analysis with the corrected sims + retrained detector
    to see whether the sim-to-real gap (and the incoherent per-stream z) narrows.
+
+## Speedup: BLAS thread-pinning (output-identical)
+While the regen ran, profiling showed CPU pegged at 100% with only 8 workers on a
+24-core/32-thread i9-14900KF: BLAS/OpenMP was auto-threading inside each worker, so
+8 workers x ~4 threads oversubscribed all logical cores and burned cycles on
+contention (this is why a naive high n_jobs had been *slower*, and 8 looked optimal).
+
+Fix (in `generate_training_data.py`, before numpy import): pin
+OMP/OPENBLAS/MKL/NUMEXPR/VECLIB threads to 1 via `os.environ.setdefault`, then run
+one worker per physical core (`n_jobs: 22`, 2 reserved for the OS).
+
+Verified OUTPUT-IDENTICAL: same seed gives a bit-for-bit identical particle hash
+(`3c7c2804...94c4d`) with threads=1 vs auto (the physics is a seeded RNG + galpy C
+dop853 integrator, not threaded BLAS). Confirmed the galpy C extension is active
+(`integrateFullOrbit._ext_loaded = True`) — no Python-odeint fallback.
+
+Measured: 1.68 -> 2.14 sims/s (~1.28x), full-run ETA ~16.5 h -> ~11.5 h, and the
+machine stays responsive (CPU ~71% instead of 100%). The regen was restarted with
+the new settings; it resumed from the 43 existing chunks (deterministic per-run_id
+seeds -> identical sims), losing nothing.

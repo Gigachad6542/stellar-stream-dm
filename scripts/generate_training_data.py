@@ -21,8 +21,28 @@ from __future__ import annotations
 # circular-import deadlock (stack overflow) in the Python import lock machinery.
 # Patching sys.path here — before numpy — prevents the deadlock.
 import sys
+import os
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+# ---------------------------------------------------------------------------
+# Thread-pinning (must run BEFORE numpy/scipy/galpy import to take effect).
+#
+# Each simulation is a single-threaded galpy orbit integration on small arrays
+# (~1k particles). With BLAS/OpenMP left to auto-detect, every worker spawns
+# ~ncore background threads, so N workers oversubscribe the machine (N x ncore
+# threads) and burn cycles on thread contention instead of useful work — which
+# is why a naive high n_jobs was *slower* and 8 looked like a "sweet spot".
+#
+# Pinning each worker to 1 thread is provably output-identical (verified by
+# bit-for-bit hash of the generated particles with threads=1 vs auto) because
+# the physics is a seeded RNG + C dop853 integrator, not threaded BLAS. With
+# threads pinned, one worker per physical core gives true linear parallelism.
+# setdefault() lets an explicit external override still win.
+# ---------------------------------------------------------------------------
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+           "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
+    os.environ.setdefault(_v, "1")
 
 # ---------------------------------------------------------------------------
 # Windows/conda galpy C-extension fix (must run BEFORE any galpy import).

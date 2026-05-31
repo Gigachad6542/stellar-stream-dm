@@ -6,7 +6,7 @@ simulation:
   random_seed: 42
   output_dir: "data/simulations_v3_track6d"   # regenerated with track6d IC + calibrated spray ages (v2_plan2 used the broken 5D-RMS IC)
   chunk_size: 250                    # smaller chunks reduce restart loss during long runs
-  n_jobs: 8                          # benchmarked sweet spot on local i9-14900KF
+  n_jobs: 22                         # 1 worker/physical-core (24c), 2 reserved for OS; valid now that BLAS threads are pinned to 1 (see thread-pinning note in generate_training_data.py). Pre-pinning the sweet spot was 8 due to thread oversubscription.
   job_timeout_sec: 300               # kill hung worker (zombie guard)
   streams_for_training:
     - GD1
