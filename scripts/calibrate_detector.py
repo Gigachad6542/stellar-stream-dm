@@ -59,7 +59,18 @@ def main() -> int:
     ap.add_argument("--sim-dir", required=True)
     ap.add_argument("--max-val", type=int, default=3000)
     ap.add_argument("--clip-sigma", type=float, default=5.0)
+    ap.add_argument("--error-dr", action="store_true",
+                    help="Calibrate on error-domain-randomized val data (match an --error-dr model). "
+                         "Reads training_v2.error_domain_randomization from --config.")
+    ap.add_argument("--config", default="config/training.yaml")
     args = ap.parse_args()
+
+    error_dr_cfg = None
+    if args.error_dr:
+        import yaml
+        with open(args.config) as f:
+            error_dr_cfg = dict(yaml.safe_load(f).get("training_v2", {}).get("error_domain_randomization", {}))
+        error_dr_cfg["enabled"] = True
 
     ckpt = Path(args.checkpoint)
     ckpt_dir = ckpt.parent
@@ -93,7 +104,8 @@ def main() -> int:
 
     ds = StreamSimDataset(args.sim_dir, k_neighbors=k,
         max_stars=cfg["preprocessing"]["max_stars_per_sim"], augment=False,
-        normalizer=normalizer, preload_ram=False, label_schema=schema)
+        normalizer=normalizer, preload_ram=False, label_schema=schema,
+        error_dr=error_dr_cfg)
     split = load_split_indices(
         ckpt_dir / f"split_n{len(ds)}_seed{cfg['training'].get('split_seed', 42)}_"
                    f"{_tag(target, thr)}.npz")
