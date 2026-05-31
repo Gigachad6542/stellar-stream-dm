@@ -568,7 +568,7 @@ class TimelineForwardModel:
         log.info("    Filters: |phi2| < %.1f deg, membership >= %.2f, PM cuts",
                  self.cfg.phi2_cut_deg, self.cfg.membership_prob_min)
 
-    def _generate_base_stream(self) -> StreamParticles:
+    def _generate_base_stream(self, seed: Optional[int] = None) -> StreamParticles:
         """Generate one unperturbed stream simulation as the encounter substrate."""
         if self._mws is None:
             import galstreams
@@ -578,10 +578,68 @@ class TimelineForwardModel:
             stream_name=self.cfg.stream_name,
             potential=self.potential,
             n_stars=self.cfg.n_stars_sim,
-            seed=self.cfg.base_seed,
+            seed=self.cfg.base_seed if seed is None else seed,
             config_path=self.cfg.config_path,
             mws=self._mws,
         )
+
+    def _score_stream_vs_obs(self, stream: StreamParticles) -> ScoreResult:
+        """Score any simulated stream against the observed data (density+gap+kin+RV)."""
+        sim_profile = compute_density_profile(
+            stream.phi1, self.phi1_range, bin_width_deg=self.cfg.density_bin_width_deg,
+        )
+        sim_gaps = detect_gaps(
+            sim_profile, min_depth=self.cfg.gap_detection_min_depth,
+            min_significance=self.cfg.gap_detection_min_significance,
+        )
+        return combined_score(
+            sim_profile=sim_profile,
+            obs_profile=self.obs_profile,
+            sim_gaps=sim_gaps,
+            obs_gaps=self.obs_gaps,
+            sim_phi1=stream.phi1, sim_pm1=stream.pm1, sim_pm2=stream.pm2,
+            obs_phi1=self.obs_particles["phi1"],
+            obs_pm1=self.obs_particles["pm1"],
+            obs_pm2=self.obs_particles["pm2"],
+            phi1_range=self.phi1_range,
+            weights=self.cfg.score_weights,
+            density_bin_width=self.cfg.density_bin_width_deg,
+            kinematic_bin_width=self.cfg.kinematic_bin_width_deg,
+            sim_vrad=stream.vrad,
+            obs_vrad=self.obs_particles.get("vrad"),
+        )
+
+    def build_null_distribution(
+        self, n_realizations: int = 20, seed0: int = 1000,
+    ) -> list[float]:
+        """Score many *unperturbed* stream realizations (varied seeds) vs observations.
+
+        This is the no-impact baseline distribution: its scatter sets the scale
+        against which a candidate encounter's improvement is judged. A candidate
+        is only meaningful if it scores better than this distribution by a
+        margin large compared to the null scatter (see compute_significance).
+        """
+        scores = []
+        for i in range(n_realizations):
+            stream = self._generate_base_stream(seed=seed0 + i)
+            scores.append(float(self._score_stream_vs_obs(stream).combined))
+        log.info("Null distribution (%d realizations): mean=%.4f std=%.4f",
+                 n_realizations, float(np.mean(scores)), float(np.std(scores, ddof=1)))
+        return scores
+
+    def evaluate_candidate_multiseed(
+        self, params: dict, seeds: list[int],
+    ) -> tuple[float, float, list[float]]:
+        """Evaluate one candidate over several base-stream seeds.
+
+        Returns (mean_combined, std_combined, per_seed_scores). Averaging over
+        seeds removes the sampling-noise component so candidate ranking reflects
+        the physical encounter rather than a particular spray realization.
+        """
+        scores = []
+        for s in seeds:
+            scores.append(float(self.evaluate_candidate(params, seed=s).score.combined))
+        return float(np.mean(scores)), float(np.std(scores, ddof=1) if len(scores) > 1 else 0.0), scores
 
     def _evaluate_null_hypothesis(self) -> ScoreResult:
         """Score the unperturbed baseline stream against observations.
@@ -674,7 +732,7 @@ class TimelineForwardModel:
                  len(grid), len(masses), len(times), len(phi1s))
         return grid
 
-    def evaluate_candidate(self, params: dict) -> CandidateResult:
+    def evaluate_candidate(self, params: dict, seed: Optional[int] = None) -> CandidateResult:
         """Evaluate a single encounter candidate: simulate + score.
 
         In full mode (default): generates a fresh stream, applies the encounter
@@ -713,8 +771,10 @@ class TimelineForwardModel:
         )
 
         if self.cfg.use_fast_mode:
-            # Fast mode: impulse approximation on pre-generated base stream
-            perturbed = apply_impulse_approximation(self.base_stream, encounter)
+            # Fast mode: impulse approximation on the base stream. With a seed
+            # override (multi-seed significance), use a fresh base realization.
+            base = self.base_stream if seed is None else self._generate_base_stream(seed=seed)
+            perturbed = apply_impulse_approximation(base, encounter)
         else:
             # Full mode: orbit-integrated evolution
             # Each candidate generates a fresh perturbed stream from scratch.
@@ -728,7 +788,7 @@ class TimelineForwardModel:
                 potential=self.potential,
                 encounter=encounter,
                 n_stars=self.cfg.n_stars_sim,
-                seed=self.cfg.base_seed,
+                seed=self.cfg.base_seed if seed is None else seed,
                 config_path=self.cfg.config_path,
                 mws=self._mws,
             )

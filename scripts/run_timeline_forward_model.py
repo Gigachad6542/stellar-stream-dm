@@ -98,6 +98,16 @@ def parse_args() -> argparse.Namespace:
                    help="Number of parallel worker processes. >1 uses multiprocessing for "
                         "embarrassingly parallel grid evaluation. Default: 1 (sequential).")
 
+    # Statistical significance
+    p.add_argument("--significance", type=int, default=0, metavar="N",
+                   help="Build a null distribution of N unperturbed realizations and report the "
+                        "best candidate's significance (z-score + empirical p-value).")
+    p.add_argument("--n-seeds", type=int, default=1,
+                   help="Evaluate the top candidates over this many base-stream seeds and rank by "
+                        "the seed-averaged score (removes sampling noise). Default 1 (no averaging).")
+    p.add_argument("--significance-seed0", type=int, default=1000,
+                   help="First seed for the null-distribution realizations.")
+
     # Refinement
     p.add_argument("--refine", action="store_true",
                    help="After coarse grid, refine top candidates with finer sub-grid")
@@ -350,6 +360,55 @@ def main() -> None:
         log.info("REFINEMENT PASS")
         log.info("=" * 70)
         results = model.refine_top_candidates(results, n_top=args.refine_top)
+
+    # --- Multi-seed re-ranking of the top candidates (remove sampling noise) ---
+    if args.n_seeds > 1:
+        log.info("")
+        log.info("=" * 70)
+        log.info("MULTI-SEED RE-RANKING (top %d candidates x %d seeds)", args.refine_top, args.n_seeds)
+        log.info("=" * 70)
+        seeds = [config.base_seed + 1000 * j for j in range(args.n_seeds)]
+        n_top = min(args.refine_top, len(results))
+        for r in results[:n_top]:
+            mean, std, _ = model.evaluate_candidate_multiseed(
+                {"log10_mass": r.log10_mass, "t_since_gyr": r.t_since_gyr,
+                 "impact_phi1": r.impact_phi1}, seeds)
+            r.score.details["multiseed_mean"] = mean
+            r.score.details["multiseed_std"] = std
+            r.score.combined = mean   # rank by seed-averaged score
+        results[:n_top] = sorted(results[:n_top], key=lambda r: r.score.combined)
+        log.info("  Re-ranked best: log10_M=%.2f t=%.1f phi1=%.1f  score=%.4f +/- %.4f",
+                 results[0].log10_mass, results[0].t_since_gyr, results[0].impact_phi1,
+                 results[0].score.combined, results[0].score.details.get("multiseed_std", 0.0))
+
+    # --- Statistical significance vs a no-impact null distribution ---
+    significance = None
+    if args.significance > 0:
+        import json
+        from src.forward_model.significance import compute_significance
+        log.info("")
+        log.info("=" * 70)
+        log.info("SIGNIFICANCE (null distribution of %d unperturbed realizations)", args.significance)
+        log.info("=" * 70)
+        null_scores = model.build_null_distribution(
+            n_realizations=args.significance, seed0=args.significance_seed0)
+        significance = compute_significance(results[0].score.combined, null_scores)
+        log.info("  Best candidate score = %.4f", significance.candidate_score)
+        log.info("  Null: mean=%.4f std=%.4f (n=%d)",
+                 significance.null_mean, significance.null_std, significance.n_null)
+        log.info("  -> z-score = %.2f sigma, empirical p-value = %.3f",
+                 significance.z_score, significance.p_value)
+        if significance.p_value > 0.05:
+            log.info("  NOT significant: the best fit is within the no-impact scatter "
+                     "(p > 0.05). No evidence for a distinct impact.")
+        else:
+            log.info("  Significant at p=%.3f: the best fit is better than the no-impact "
+                     "baseline beyond its scatter.", significance.p_value)
+        sig_dir = Path(config.output_dir) / config.stream_name
+        sig_dir.mkdir(parents=True, exist_ok=True)
+        with open(sig_dir / "significance.json", "w") as f:
+            json.dump(significance.to_dict(), f, indent=2)
+        log.info("  Significance saved to %s", sig_dir / "significance.json")
 
     out_path = model.save_results(results)
 
