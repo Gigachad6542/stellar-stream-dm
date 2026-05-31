@@ -4,7 +4,7 @@ simulation:
   n_sims_per_model: 25000            # per DM model; 100K total for Plan 2
   n_models: 4
   random_seed: 42
-  output_dir: "data/simulations_v2_plan2"
+  output_dir: "data/simulations_v3_track6d"   # regenerated with track6d IC + calibrated spray ages (v2_plan2 used the broken 5D-RMS IC)
   chunk_size: 250                    # smaller chunks reduce restart loss during long runs
   n_jobs: 8                          # benchmarked sweet spot on local i9-14900KF
   job_timeout_sec: 300               # kill hung worker (zombie guard)
