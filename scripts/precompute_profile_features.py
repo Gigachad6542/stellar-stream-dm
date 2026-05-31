@@ -57,7 +57,22 @@ def main() -> int:
     parser.add_argument("--downsample-seed", type=int, default=42)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--no-preload-ram", action="store_true")
+    parser.add_argument("--error-dr", action="store_true",
+                        help="Build the cache from error-domain-randomized features, reading the "
+                             "training_v2.error_domain_randomization block from --config so the cache "
+                             "matches `train_v2.py --error-dr` exactly.")
+    parser.add_argument("--config", default="config/training.yaml",
+                        help="Config with the error_domain_randomization block (for --error-dr).")
     args = parser.parse_args()
+
+    error_dr_cfg = None
+    if args.error_dr:
+        import yaml
+        with open(args.config) as f:
+            full_cfg = yaml.safe_load(f)
+        error_dr_cfg = dict(full_cfg.get("training_v2", {}).get("error_domain_randomization", {}))
+        error_dr_cfg["enabled"] = True
+        log.info("Error domain randomization ENABLED for cache: %s", error_dr_cfg)
 
     device = _resolve_device(args.device)
     out = Path(args.out)
@@ -78,6 +93,7 @@ def main() -> int:
         augment=False,
         preload_ram=not args.no_preload_ram,
         downsample_seed=args.downsample_seed,
+        error_dr=error_dr_cfg,
     )
     loader = PyGDataLoader(
         dataset,

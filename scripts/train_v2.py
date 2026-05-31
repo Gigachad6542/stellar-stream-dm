@@ -428,10 +428,15 @@ def train_gnn_v2(args, cfg: dict) -> None:
         error_dr_cfg = {**error_dr_cfg, "enabled": True}
     if error_dr_cfg.get("enabled"):
         log.info("Error domain randomization ENABLED: %s", error_dr_cfg)
-        # The precomputed profile-feature cache was built without error-DR and
-        # would be stale; force on-the-fly profile features for a faithful retrain.
-        if profile_features_path:
-            log.info("  Ignoring stale profile-feature cache (building on the fly).")
+        # The default config profile-feature cache was built WITHOUT error-DR and
+        # would be stale. If the user explicitly passes --profile-features-path
+        # (an error-DR cache built by precompute_profile_features.py --error-dr),
+        # trust it; otherwise build profile features on the fly.
+        if args.profile_features_path:
+            log.info("  Using explicitly provided error-DR profile cache: %s",
+                     args.profile_features_path)
+        elif profile_features_path:
+            log.info("  Ignoring stale config profile-feature cache (building on the fly).")
             profile_features_path = None
     else:
         error_dr_cfg = None
