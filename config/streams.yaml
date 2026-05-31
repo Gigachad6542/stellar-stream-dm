@@ -39,9 +39,13 @@ streams:
     width_pc: 30
     velocity_dispersion_kms: 0.4
     disk_crossing: false
+    # phi1_center is in the GD-1-I21 frame used by the pipeline/sims. The
+    # canonical PWB18/Koposov values (phi1_center_pwb18) are kept for reference;
+    # transform via src/data/gd1_frames.py (PWB18 -40 -> I21 30.7). The
+    # data-driven deepest density minimum sits at I21~36, confirming gap_1.
     known_gaps:
-      - {phi1_center: -40.0, phi1_width: 3.0, label: "gap_1", candidate_dm: true}
-      - {phi1_center: -20.0, phi1_width: 5.0, label: "spur_region", candidate_dm: false}
+      - {phi1_center: 30.7, phi1_width: 3.0, label: "gap_1", candidate_dm: true, phi1_center_pwb18: -40.0}
+      - {phi1_center: 50.7, phi1_width: 5.0, label: "spur_region", candidate_dm: false, phi1_center_pwb18: -20.0}
 
   Pal5:
     display_name: "Pal 5"
