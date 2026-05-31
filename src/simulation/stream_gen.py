@@ -803,48 +803,81 @@ def generate_stream(
     # ---- 2. Sample release times and build perturbed ICs ------------
     n_lead  = n_stars // 2
     n_trail = n_stars - n_lead
-    k_v     = 0.3   # Fardal+2015 velocity kick coefficient
 
     # Progenitor mass and tidal radius scaling
     m_prog_msun = sc.get("prog_mass_solar", 2e4)
 
-    sigma_v_max = 999.0  # no cap by default (cold-stream tuning left for future work)
+    # Particle-spray release, configurable via a per-stream `spray` block.
+    #
+    # The release is written in the orbital frame (radial / in-plane-tangential /
+    # out-of-plane) so individual components can be tuned. IMPORTANT empirical
+    # finding (2026-05-30): a naive "proper Fardal" release with the literature
+    # radial Lagrange offset kr_mean=2.0 (without the correlated velocity that
+    # keeps the star bound at the Lagrange point, as in gala's FardalStreamDF)
+    # is STRICTLY WORSE here than the simple isotropic kick: it over-lengthens the
+    # stream, fans phi2 wider, and shifts the net proper motion off the track
+    # (GD-1 pm1 -12.8 -> -10.3). The phi2 width is dominated by energy-spread /
+    # orbital-precession fanning over the long spray age, not by the out-of-plane
+    # release component, so the release prescription alone cannot fix it. The
+    # DEFAULTS below therefore reproduce the simpler isotropic spray (kr_mean=1,
+    # zero-mean isotropic velocity dispersion 0.3*v_scale), which preserves the
+    # correct orbit. A correctly-correlated Fardal release (or a working gala
+    # install / N-body) is the real fix and is left as future work; the knobs are
+    # exposed for that.
+    spray = sc.get("spray", {})
+    kr_mean  = float(spray.get("kr_mean", 1.0))     # radial Lagrange offset [r_tidal]
+    kr_std   = float(spray.get("kr_std", 0.0))
+    kvt_mean = float(spray.get("kvt_mean", 0.0))    # in-plane tangential velocity offset [v_scale]
+    kvt_std  = float(spray.get("kvt_std", 0.3))     # in-plane velocity dispersion [v_scale]
+    k_perp   = float(spray.get("k_perp", 0.3))      # out-of-plane dispersion [v_scale] (0.3 = isotropic)
+    kr_pos_perp = float(spray.get("kr_pos_perp", 0.0))  # out-of-plane position scatter [r_tidal]
 
     # Sample release times uniformly along the backward orbit
     idx_lead  = rng.integers(0, n_steps_back, n_lead)
     idx_trail = rng.integers(0, n_steps_back, n_trail)
 
-    # Build perturbed ICs for lead and trail particles
     def _make_perturbed_ic(idx_arr: np.ndarray, sign: float) -> tuple:
-        """sign=+1 for lead, sign=-1 for trail."""
+        """sign=+1 for lead, sign=-1 for trail. Anisotropic orbital-frame release."""
         p_pos = prog_pos[idx_arr]          # [N, 3]
         p_vel = prog_vel[idx_arr]          # [N, 3]
-        p_r   = r_mag[idx_arr, 0]         # [N]
-        p_rh  = r_hat[idx_arr]            # [N, 3]
+        p_r   = r_mag[idx_arr, 0]          # [N]
+        p_rh  = r_hat[idx_arr]             # [N, 3]
+        n = len(idx_arr)
 
-        # Tidal radius (Jacobi) ~ r_prog * (M_prog / (3 M_enc))^(1/3)
-        # Approximate M_enc using circular velocity: v_c^2 * r / G
-        # v_c_orbit was vectorised once before this function — just index into it.
-        G_kpc = 4.3009e-6  # kpc * (km/s)^2 / Msun  (matches subhalo.G_KPC_KMS)
-        v_c_arr = v_c_orbit[idx_arr]   # [N], km/s  — no per-particle vcirc call
-        m_enc = v_c_arr**2 * p_r / G_kpc   # Msun
+        # Tidal (Jacobi) radius via M_enc ~ v_c^2 r / G
+        G_kpc = 4.3009e-6
+        v_c_arr = v_c_orbit[idx_arr]       # [N], km/s
+        m_enc = v_c_arr**2 * p_r / G_kpc
         r_tidal = p_r * (m_prog_msun / (3.0 * np.clip(m_enc, 1.0, None))) ** (1.0 / 3.0)
+        omega = v_c_arr / p_r              # km/s / kpc
+        v_scale = omega * r_tidal          # km/s  (Fardal velocity scale)
 
-        # Position: offset by r_tidal in radial direction
-        pos_new = p_pos + sign * r_tidal[:, np.newaxis] * p_rh
+        # Orbital-frame basis per particle: radial r_hat, normal n_hat (out of
+        # orbital plane), in-plane tangential t_hat.
+        v_hat = p_vel / np.clip(np.linalg.norm(p_vel, axis=1, keepdims=True), 1e-6, None)
+        n_hat = np.cross(p_rh, v_hat)
+        n_hat = n_hat / np.clip(np.linalg.norm(n_hat, axis=1, keepdims=True), 1e-6, None)
+        t_hat = np.cross(n_hat, p_rh)
+        t_hat = t_hat / np.clip(np.linalg.norm(t_hat, axis=1, keepdims=True), 1e-6, None)
 
-        # Velocity: Fardal+2015 prescription
-        # sigma_v = k_v * Omega * r_tidal  where Omega = v_c / r  (NOT k_v * v_c)
-        # Cap at the observed velocity dispersion for cold thin streams (GD-1, Sylgr, …)
-        # to avoid generating streams that are 3-5× too wide in phi2.
-        omega   = v_c_arr / p_r                          # km/s / kpc
-        sigma_v = np.minimum(k_v * omega * r_tidal, sigma_v_max)
-        dv = rng.normal(0, sigma_v[:, np.newaxis], size=(len(idx_arr), 3))
+        # Position offset: radial Lagrange point + small out-of-plane scatter.
+        kr = rng.normal(kr_mean, kr_std, n)
+        kz = rng.normal(0.0, kr_pos_perp, n)
+        pos_new = (p_pos
+                   + sign * (kr * r_tidal)[:, None] * p_rh
+                   + (kz * r_tidal)[:, None] * n_hat)
+
+        # Velocity offset: mean tangential drift (sets along-stream length) +
+        # in-plane radial scatter + SMALL out-of-plane scatter (sets thinness).
+        kvt = rng.normal(kvt_mean, kvt_std, n)
+        kvr = rng.normal(0.0, kvt_std, n)
+        kvz = rng.normal(0.0, k_perp, n)
+        dv = ((kvt * v_scale)[:, None] * t_hat
+              + (kvr * v_scale)[:, None] * p_rh
+              + (kvz * v_scale)[:, None] * n_hat)
         vel_new = p_vel + sign * dv
 
-        # Release times (negative = past)
-        t_release = t_back_gyr[idx_arr]  # Gyr, negative
-
+        t_release = t_back_gyr[idx_arr]    # Gyr, negative
         return pos_new, vel_new, t_release
 
     pos_lead,  vel_lead,  t_lead  = _make_perturbed_ic(idx_lead,  +1.0)
