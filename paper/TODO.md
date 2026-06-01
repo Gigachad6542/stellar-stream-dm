@@ -63,6 +63,9 @@ REGENERATE after v3 (results-dependent):
   corrected §4.3 detector-overconfidence methodology against the source changelog.
 - 2026-06-01 ~03:42 — Epoch 24/80, val acc ~0.57. Paper: exact membership-
   contamination figures in §2.2 (GD-1 0.7%, ATLAS 35%, Jhelum 0), re-verified.
+- 2026-06-01 ~04:32 — Epoch 41/80, val acc 0.588 (best). ETA ~06:30. Paper:
+  expanded §6 Statistical framework into full prose (per-stream null, best-of-grid
+  look-elsewhere, Stouffer/Fisher, coherence gate, structure-preserving null).
 - 2026-06-01 ~04:07 — Epoch 33/80. WATCH: val BCE ~0.69 (~ln2), acc ~0.58 — weak
   binary separability on v3. Likely because v3 is a PHYSICS-PRIOR dataset (impact
   signal entangled/weak, historically ~0.65-0.68 AUC) vs the prior 0.93-AUC run

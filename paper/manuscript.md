@@ -196,15 +196,36 @@ score each hypothesis against the observed stream (including fused RV/PM data wi
 zero-point calibration). Injection–recovery on full orbits validates the
 recovery of injected impact parameters. **[PENDING v3 numbers.]**
 
-## 6. Statistical framework *(methods complete)*
+## 6. Statistical framework *(methods complete; prose)*
 
-- Per-stream significance against a null distribution; the look-elsewhere effect
-  corrected by a best-of-grid null.
-- Multi-stream combination via Stouffer-Z and Fisher's method, gated by a
-  **coherence** requirement (incoherent per-stream signs ⇒ not a detection).
-- Honest null construction: we document confounds in data-driven nulls
-  (φ1-jitter broadening; pm-shuffle destroying kinematic gradients) and why a
-  structure-preserving null is needed.
+**Per-stream significance.** For each stream we compare the best-scoring impact
+hypothesis against a null distribution of scores obtained from no-impact
+realizations of the same stream, converting the tail probability to a z-score.
+
+**Look-elsewhere correction.** Because the timeline forward model searches a grid
+over perturber mass, impact time, and φ1 location, the most significant grid cell
+is biased high. We correct for this multiplicity with a *best-of-grid* null: each
+null realization is scored over the entire grid and we retain its maximum, so the
+null reflects the same search the data undergo. This typically erases naive
+single-cell significance.
+
+**Multi-stream combination.** We combine per-stream evidence with both Stouffer's
+Z (∝ Σzᵢ/√N) and Fisher's method (−2 Σ ln pᵢ), headlining the more conservative
+of the two. Crucially, combination is **gated by a coherence requirement**: a
+genuine population-level subhalo signal should produce per-stream evidence that is
+*coherent* (consistent in sign and broadly in magnitude). When the per-stream z
+are incoherent — in our pre-correction runs they were mixed-sign, ~71% positive,
+spanning roughly [−4.8, +29] — we explicitly decline to claim a detection, since
+an incoherent excess is the signature of residual modeling systematics rather than
+a shared physical cause.
+
+**Honest null construction.** Building a null from the data themselves is subtle:
+jittering φ1 broadens the stream and mimics a perturbation, while shuffling proper
+motions destroys the intrinsic kinematic gradient and spuriously inflates streams
+with strong gradients (e.g. GD-1). We document these confounds and identify a
+*structure-preserving* null (one that randomizes the hypothesized perturbation
+while leaving the unperturbed stream's intrinsic structure intact) as the correct
+construction, which we adopt for the headline result.
 
 ## 7. Results *(PENDING v3)*
 
