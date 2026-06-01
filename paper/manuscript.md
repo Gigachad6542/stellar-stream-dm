@@ -157,7 +157,7 @@ The training set spans multiple stream morphologies (verified post-regeneration:
 GD-1-, Pal 5-, Jhelum-, ATLAS-, and Orphan-class streams each recover their
 literature kinematics).
 
-## 4. Detector: GNN + SBI *(methods complete; numbers PENDING v3)*
+## 4. Detector: GNN + SBI
 
 ### 4.1 Graph construction and GINEConv encoder
 Each stream's member stars are assembled into a k-nearest-neighbour graph
@@ -313,7 +313,7 @@ a categorized `scripts/` index, and changelogs documenting every methodological
 decision. All datasets are regenerable from `scripts/generate_training_data.py`
 (thread-pinned, deterministic per-seed).
 
-## 10. Conclusions *(draft; numbers PENDING v3)*
+## 10. Conclusions *(draft)*
 
 We have built and documented a complete, reproducible pipeline for searching for
 dark-matter subhalo impacts in Milky Way stellar streams, comprising a
