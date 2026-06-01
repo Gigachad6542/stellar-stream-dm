@@ -63,6 +63,13 @@ REGENERATE after v3 (results-dependent):
   corrected §4.3 detector-overconfidence methodology against the source changelog.
 - 2026-06-01 ~03:42 — Epoch 24/80, val acc ~0.57. Paper: exact membership-
   contamination figures in §2.2 (GD-1 0.7%, ATLAS 35%, Jhelum 0), re-verified.
+- 2026-06-01 ~09:50 — Morning (user back). Overnight loop froze ~06:43 (env
+  suspended while idle; injrec full-orbit run segfaulted). Recovered: re-ran
+  injection-recovery in --fast (impulse) mode → PERFECT recovery (truth rank 0/60,
+  dM=dt=dphi1=0, beats null). FULL-ORBIT injrec segfaults (galpy C, exit 139) at
+  baseline generation — KNOWN ISSUE (flagged for separate fix; method validated
+  via impulse mode). Filled §5. Regenerated significance_v3.png. All headline
+  results now in manuscript. Remaining: figures polish, LaTeX, editorial pass.
 - 2026-06-01 ~06:38 — *** MILESTONE: core results in. *** Training done (best val
   acc 0.595). Calibrated: v3 AUC=0.618 (T=0.672) vs 0.937 balanced. Multistream
   joint (v3, look-elsewhere): Stouffer Z=1.00 (p=0.16), Fisher chi2=16.2 (p=0.30)

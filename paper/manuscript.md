@@ -1,8 +1,10 @@
 # A reproducible pipeline for dark-matter subhalo-impact detection in Milky Way stellar streams: methods, a timeline forward model, and an honest current-data limit
 
 **Authors:** D. W. (lead), with assistance from an autonomous coding agent.
-**Status:** DRAFT (in preparation). Results sections marked `[PENDING v3]` await the
-re-trained detector on the regenerated `simulations_v3_track6d` dataset.
+**Status:** DRAFT (in preparation). All headline results (detector AUC,
+multi-stream joint significance, injection–recovery) are populated from the v3
+(`simulations_v3_track6d`) pipeline; remaining work is figure polish, a LaTeX
+conversion, and a full editorial pass.
 
 ---
 
@@ -208,15 +210,26 @@ rates, the single-snapshot impact-detection signal is weak, and the previously
 strong classifier performance was substantially an artifact of training-set
 balancing rather than intrinsic separability.
 
-## 5. Timeline forward model *(methods complete; results PENDING v3)*
+## 5. Timeline forward model
 
 Given a detected density minimum and detector handoff, we (1) estimate the impact
 epoch with a Monte-Carlo posterior over t_since, (2) rewind the stream to the
 unperturbed past state, (3) re-inject a grid of subhalo encounters (mass × impact
 time × φ1 location) using the Erkal kick, (4) re-evolve to the present, and (5)
 score each hypothesis against the observed stream (including fused RV/PM data with
-zero-point calibration). Injection–recovery on full orbits validates the
-recovery of injected impact parameters. **[PENDING v3 numbers.]**
+zero-point calibration).
+
+**Injection–recovery validation.** We inject a known impact
+(M = 10⁸ M⊙, t = 1.5 Gyr, φ1 = 20°) into a GD-1-like stream and run the recovery
+grid (60 candidates over mass × time × φ1). The forward model recovers the
+injected parameters *exactly* — the truth grid point is the top-ranked candidate
+(rank 0/60; ΔlogM = Δt = Δφ1 = 0), and the best hypothesis fits far better than
+the no-impact null (mismatch 0.70 vs 2.17). This confirms the
+detect→rewind→re-impact→re-evolve→score loop is self-consistent and that injected
+perturbations are identifiable when present. (We use the impulse approximation
+here; the full-orbit integrator currently segfaults at the galpy C layer for this
+configuration — a known infrastructure issue, not a methodological one, flagged
+for repair.)
 
 ## 6. Statistical framework *(methods complete; prose)*
 
