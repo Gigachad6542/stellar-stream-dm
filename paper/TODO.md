@@ -63,6 +63,11 @@ REGENERATE after v3 (results-dependent):
   corrected §4.3 detector-overconfidence methodology against the source changelog.
 - 2026-06-01 ~03:42 — Epoch 24/80, val acc ~0.57. Paper: exact membership-
   contamination figures in §2.2 (GD-1 0.7%, ATLAS 35%, Jhelum 0), re-verified.
+- 2026-06-01 ~05:21 — Epoch 57/80, best val acc 0.591. Prepped post-training:
+  calibrate_detector writes calibration.json with roc_auc (prior balanced run =
+  0.937, T=0.78). Will read v3 AUC from there on completion. Paper: framed §4.3's
+  0.937 explicitly as the BALANCED-set number (not headline), set up honest v3
+  contrast. (evaluate_v2_classifier lacks the timeline target; use calibrate's AUC.)
 - 2026-06-01 ~04:56 — Epoch 49/80 (entering stage2), best val acc 0.590. ETA
   ~06:30. Paper: enriched §4.1 with real graph/model hyperparameters (k=8, 18
   node / 5 edge features, GINEConv 2.3M params, AdamW lr3e-4, 70/15/15 split).

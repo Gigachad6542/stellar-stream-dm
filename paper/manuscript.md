@@ -189,10 +189,16 @@ temperature (T = 1.065) from `calibration.json`. This alone moved p_impact from
 the (contaminated) real GD-1 catalog. We then **retrained with error-domain
 randomization** — per-star errors drawn log-uniformly over realistic ranges plus
 random RV masking each epoch — so the detector sees the observational noise it
-will face. The error-DR detector discriminates with AUC ≈ 0.93–0.94 (mean
-p(neg) ≈ 0.18 vs p(pos) ≈ 0.84; ~1% of sim-negatives falsely confident).
+will face. On the *balanced* curriculum dataset this error-DR detector
+discriminated well (AUC = 0.937, temperature-calibrated T = 0.78; mean
+p(neg) ≈ 0.18 vs p(pos) ≈ 0.84). We stress that this figure is dataset-dependent
+(§8, Limitation 6): on the physically-faithful, physics-prior v3 dataset the same
+architecture is expected to be substantially weaker, and we report that honestly
+rather than carrying the optimistic balanced-set number as the headline.
 **[PENDING v3: re-trained on `simulations_v3_track6d` with the cached error-DR
-profiles; report AUC, reliability diagram, and real-stream p_impact here.]**
+profiles; early training shows val accuracy ≈ 0.59, implying AUC well below the
+balanced-set value. Report the calibrated v3 AUC, reliability diagram, and
+real-stream p_impact here.]**
 
 ## 5. Timeline forward model *(methods complete; results PENDING v3)*
 
