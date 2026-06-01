@@ -195,10 +195,15 @@ p(neg) ≈ 0.18 vs p(pos) ≈ 0.84). We stress that this figure is dataset-depen
 (§8, Limitation 6): on the physically-faithful, physics-prior v3 dataset the same
 architecture is expected to be substantially weaker, and we report that honestly
 rather than carrying the optimistic balanced-set number as the headline.
-**[PENDING v3: re-trained on `simulations_v3_track6d` with the cached error-DR
-profiles; early training shows val accuracy ≈ 0.59, implying AUC well below the
-balanced-set value. Report the calibrated v3 AUC, reliability diagram, and
-real-stream p_impact here.]**
+**v3 result.** Re-trained on the physically-faithful `simulations_v3_track6d`
+dataset (error-DR, cached profiles, 70k/15k/15k split), the *same* architecture
+reaches only validation accuracy 0.595 and **AUC = 0.618** (temperature
+T = 0.672) — barely above chance and far below the 0.937 obtained on the balanced
+curriculum set. This is the paper's central cautionary result: once the
+simulator is corrected to match real-stream kinematics and realistic impact
+rates, the single-snapshot impact-detection signal is weak, and the previously
+strong classifier performance was substantially an artifact of training-set
+balancing rather than intrinsic separability.
 
 ## 5. Timeline forward model *(methods complete; results PENDING v3)*
 
@@ -265,10 +270,9 @@ construction, which we adopt for the headline result.
    cheap baselines reach only AUC ≈ 0.65–0.68. We therefore caution that strong
    reported detector performance can partly reflect dataset construction rather
    than intrinsic separability, and we report the v3 (physically-faithful)
-   detector performance honestly in §4.3 with this distinction in mind.
-   `[PENDING v3: early v3 training shows weak binary separability (val acc ≈ 0.58
-   through the low-augmentation curriculum), consistent with a harder, more
-   realistic detection problem — to be confirmed at convergence.]`
+   detector performance honestly in §4.3 with this distinction in mind. Confirmed
+   on v3: AUC = 0.618 (val acc 0.595) vs 0.937 on the balanced set — the corrected
+   simulator yields a genuinely harder, more realistic detection problem.
 
 ## 9. Reproducibility *(draft)*
 
@@ -294,11 +298,11 @@ support:
    detector overconfidence that was an OOD input-handling artifact, not real
    skill.
 
-2. **A cautionary, reproducible result on detector performance.** `[PENDING v3]`
-   On the physically-faithful v3 simulations the detector is substantially weaker
-   (val accuracy ≈ 0.59; AUC to be reported) than the AUC ≈ 0.94 obtained on a
-   balanced curriculum dataset — evidence that strong reported performance can be
-   an artifact of training-set construction rather than intrinsic separability.
+2. **A cautionary, reproducible result on detector performance.** On the
+   physically-faithful v3 simulations the detector reaches only AUC = 0.618
+   (val accuracy 0.595), versus AUC = 0.937 on a balanced curriculum dataset —
+   direct evidence that strong reported performance can be an artifact of
+   training-set construction rather than intrinsic separability.
 
 3. **An honest population-level inference.** `[PENDING v3]` Applying the
    look-elsewhere–corrected, coherence-gated multi-stream framework to the
