@@ -278,7 +278,7 @@ correction is essential: naive single-cell z-scores of 12.0 (Pal 5) and 105
 | Sylgr  | +0.72 | 0.27 |
 
 The combined significance is **Stouffer Z = 1.00 (p = 0.159)** and **Fisher
-χ² = 16.2 (p = 0.301)** — no joint detection. Notably, the per-stream evidence is
+χ² = 16.2 (p = 0.301)** — no joint detection (Figure 1, `paper/figures/significance_v3.png`). Notably, the per-stream evidence is
 now *coherent and modest*, spanning only z ∈ [−2.5, +2.7], in sharp contrast to
 the pre-correction analysis (mixed-sign, 71% positive, z ∈ [−4.8, +29]) whose
 incoherence we had attributed to the simulation-to-observation gap. The corrected
