@@ -63,6 +63,13 @@ REGENERATE after v3 (results-dependent):
   corrected §4.3 detector-overconfidence methodology against the source changelog.
 - 2026-06-01 ~03:42 — Epoch 24/80, val acc ~0.57. Paper: exact membership-
   contamination figures in §2.2 (GD-1 0.7%, ATLAS 35%, Jhelum 0), re-verified.
+- 2026-06-01 ~06:38 — *** MILESTONE: core results in. *** Training done (best val
+  acc 0.595). Calibrated: v3 AUC=0.618 (T=0.672) vs 0.937 balanced. Multistream
+  joint (v3, look-elsewhere): Stouffer Z=1.00 (p=0.16), Fisher chi2=16.2 (p=0.30)
+  -> NO joint detection; per-stream z now coherent/modest [-2.5,+2.7] (vs pre-fix
+  [-4.8,+29]). Filled abstract, §4.3, §7 (Table 2), §8, §10 with REAL numbers.
+  Result saved outputs/multistream/joint_significance_v3.json. Remaining: §5
+  injection-recovery numbers, figure regeneration, final read-through.
 - 2026-06-01 ~05:45 — Epoch 65/80, val acc ~0.59. ETA ~06:30. Paper: drafted §10
   Conclusions (honest narrative: methods contribution, cautionary detector result,
   honest population inference; numbers PENDING). Manuscript now full prose end-to-end.

@@ -22,9 +22,12 @@ subhalo encounters with Erkal & Belokurov (2015) impulse physics, re-evolves to
 the present, and scores each hypothesis against the observed stream using fused
 multi-epoch/multi-survey kinematics. Applying the pipeline to seven streams
 (GD-1, Pal 5, Orphan–Chenab, ATLAS, Jhelum, Fjörm, Sylgr) with public Gaia DR3,
-S⁵, and APOGEE data, we find **[PENDING v3: a joint significance consistent with
-no detection / an upper limit on the impact rate]**, which we interpret honestly
-in the context of the residual simulation-to-observation gap. Our principal
+S⁵, and APOGEE data, we find **no joint detection** (Fisher p = 0.30; Stouffer
+p = 0.16), consistent with a smooth null / CDM and best read as an upper limit
+given the residual simulation-to-observation gap. We further show that a detector
+that looks strong on a balanced training set (AUC 0.94) is only marginally better
+than chance (AUC 0.62) on physically-faithful simulations — a cautionary result
+on dataset construction. Our principal
 contributions are methodological: a diagnosis and partial closure of the
 sim-to-real gap (a literature-anchored progenitor-orbit fix and error-domain
 randomization that resolves detector overconfidence), a look-elsewhere–corrected
@@ -246,14 +249,43 @@ with strong gradients (e.g. GD-1). We document these confounds and identify a
 while leaving the unperturbed stream's intrinsic structure intact) as the correct
 construction, which we adopt for the headline result.
 
-## 7. Results *(PENDING v3)*
+## 7. Results
 
-`[PENDING v3]` Re-run on the regenerated dataset + re-trained detector:
-- Per-stream significances and the joint result (coherence-gated).
-- Either an honest non-detection consistent with CDM, or an upper limit on the
-  subhalo impact rate / mass function in the probed regime.
-- Comparison to the pre-fix result (incoherent per-stream z, 71% positive,
-  range [−4.8, +29]) which we attributed to the sim-to-real gap.
+### 7.1 Detector on faithful simulations
+On the corrected v3 dataset the calibrated detector reaches AUC = 0.618 (§4.3) —
+only marginally above chance, in contrast to the AUC = 0.937 obtained on a
+balanced curriculum set. We take this as the primary cautionary result: the
+single-snapshot impact-detection signal is weak once the simulator reproduces
+realistic stream kinematics and impact rates.
+
+### 7.2 Multi-stream joint significance
+Running the look-elsewhere–corrected timeline forward model over all seven target
+streams (12 no-impact null realizations and a 10-fold look-elsewhere null per
+stream) yields the per-stream significances in Table 2. The look-elsewhere
+correction is essential: naive single-cell z-scores of 12.0 (Pal 5) and 105
+(Sylgr) collapse to 1.0 and 0.7 once the grid search is accounted for.
+
+**Table 2.** Look-elsewhere–corrected per-stream significance (v3).
+
+| Stream | z (LE) | p |
+|---|---|---|
+| GD-1   | −0.47 | 0.64 |
+| Pal 5  | +1.03 | 0.36 |
+| Orphan | −0.40 | 0.64 |
+| ATLAS  | +1.58 | 0.09 |
+| Jhelum | +2.67 | 0.09 |
+| Fjörm  | −2.48 | 0.91 |
+| Sylgr  | +0.72 | 0.27 |
+
+The combined significance is **Stouffer Z = 1.00 (p = 0.159)** and **Fisher
+χ² = 16.2 (p = 0.301)** — no joint detection. Notably, the per-stream evidence is
+now *coherent and modest*, spanning only z ∈ [−2.5, +2.7], in sharp contrast to
+the pre-correction analysis (mixed-sign, 71% positive, z ∈ [−4.8, +29]) whose
+incoherence we had attributed to the simulation-to-observation gap. The corrected
+simulator thus both lowers and *regularizes* the significance, and we report the
+result as a non-detection consistent with a smooth (no localized impact) null —
+i.e. an upper limit / CDM-consistency given current data and the catalog
+limitations of §8.
 
 ## 8. Limitations and systematics *(draft)*
 
@@ -304,12 +336,13 @@ support:
    direct evidence that strong reported performance can be an artifact of
    training-set construction rather than intrinsic separability.
 
-3. **An honest population-level inference.** `[PENDING v3]` Applying the
-   look-elsewhere–corrected, coherence-gated multi-stream framework to the
-   corrected simulations and public data, we report `[a non-detection consistent
-   with CDM / an upper limit on the subhalo impact rate]`, and we are explicit
-   about the residual systematics (membership contamination, the spray
-   length-vs-width tension, null construction) that bound it.
+3. **An honest population-level inference.** Applying the look-elsewhere–corrected,
+   coherence-gated multi-stream framework to the corrected simulations and public
+   data, we find no joint detection (Stouffer Z = 1.00, p = 0.16; Fisher
+   χ² = 16.2, p = 0.30), with per-stream evidence now coherent and modest
+   (z ∈ [−2.5, +2.7]) — a result consistent with a smooth null / CDM and best read
+   as an upper limit given the residual systematics (membership contamination, the
+   spray length-vs-width tension, null construction) that bound it.
 
 The overarching message is that closing the sim-to-real gap *raises* the bar for
 claimed detections, and that careful, reproducible methodology — including the
