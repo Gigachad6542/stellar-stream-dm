@@ -195,9 +195,9 @@ random RV masking each epoch — so the detector sees the observational noise it
 will face. On the *balanced* curriculum dataset this error-DR detector
 discriminated well (AUC = 0.937, temperature-calibrated T = 0.78; mean
 p(neg) ≈ 0.18 vs p(pos) ≈ 0.84). We stress that this figure is dataset-dependent
-(§8, Limitation 6): on the physically-faithful, physics-prior v3 dataset the same
-architecture is expected to be substantially weaker, and we report that honestly
-rather than carrying the optimistic balanced-set number as the headline.
+(§8, Limitation 6) and decline to carry the optimistic balanced-set number as the
+headline.
+
 **v3 result.** Re-trained on the physically-faithful `simulations_v3_track6d`
 dataset (error-DR, cached profiles, 70k/15k/15k split), the *same* architecture
 reaches only validation accuracy 0.595 and **AUC = 0.618** (temperature
