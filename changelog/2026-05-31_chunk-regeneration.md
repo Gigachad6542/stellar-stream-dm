@@ -59,3 +59,10 @@ Measured: 1.68 -> 2.14 sims/s (~1.28x), full-run ETA ~16.5 h -> ~11.5 h, and the
 machine stays responsive (CPU ~71% instead of 100%). The regen was restarted with
 the new settings; it resumed from the 43 existing chunks (deterministic per-run_id
 seeds -> identical sims), losing nothing.
+
+## COMPLETE (2026-06-01 00:45)
+Full regeneration finished: 400 chunks / 100,000 sims (25k x 4 DM models), 6.8 GB,
+0 worker failures, all chunks valid. Integrity spot-check (first/mid/last) passed.
+Resumed portion ran in 42,289 s (~2.11 sims/s), matching the thread-pinned estimate.
+The corrected v3 dataset is ready for: precompute_profile_features --error-dr ->
+train_v2 --error-dr -> calibrate_detector -> re-run multi-stream analysis.
