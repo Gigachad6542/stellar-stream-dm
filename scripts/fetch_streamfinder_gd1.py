@@ -68,8 +68,11 @@ def main() -> int:
                       kind="linear", bounds_error=False, fill_value="extrapolate")
     dist = f_dist(phi1).astype(float)
 
-    vrad = np.where(np.isfinite(hrv), hrv, np.nan).astype(float)
-    e_vrad = np.where(np.isfinite(e_hrv) & (e_hrv > 0), e_hrv, np.nan).astype(float)
+    # HRV has occasional garbage fill values (e.g. one star at 16857 km/s);
+    # reject anything outside a generous physical line-of-sight window.
+    hrv_ok = np.isfinite(hrv) & (np.abs(hrv) < 500.0)
+    vrad = np.where(hrv_ok, hrv, np.nan).astype(float)
+    e_vrad = np.where(hrv_ok & np.isfinite(e_hrv) & (e_hrv > 0), e_hrv, np.nan).astype(float)
 
     # Per-star uncertainties: STREAMFINDER members are bright Gaia EDR3 sources;
     # use representative EDR3 proper-motion errors and a stream-distance error.

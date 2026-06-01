@@ -245,6 +245,7 @@ class StreamImpactDetector:
         p_impact_threshold: float = 0.5,
         clip_sigma: float = 5.0,
         temperature: Optional[float] = None,
+        ignore_rv: bool = True,
     ) -> None:
         import torch
 
@@ -252,6 +253,14 @@ class StreamImpactDetector:
         self.max_stars = max_stars
         self.subsample_seed = subsample_seed
         self.p_impact_threshold = p_impact_threshold
+        # The v3 training simulations carry no radial velocity (vrad is NaN, so
+        # the detector learned it as an imputed constant). Feeding REAL RVs (e.g.
+        # GD-1's +/-300 km/s gradient, vs the sim vrad std ~14) is therefore a
+        # massively out-of-distribution feature the network never trained on
+        # (observed as ~1200-sigma OOD on real GD-1). Drop RV at inference so the
+        # input matches training; detection then rests on phi1/phi2 + proper
+        # motions, which ARE in-distribution (max ~3 sigma).
+        self.ignore_rv = ignore_rv
         # Clip standardized features to +/- clip_sigma so a single out-of-
         # distribution feature cannot explode the logit (the cause of the
         # p_impact=1.0 saturation on real data). temperature softens the
@@ -390,6 +399,12 @@ class StreamImpactDetector:
             # no spectroscopy) to the training mean so they contribute ~0 after
             # standardisation, instead of feeding fake constants that explode
             # through the std-clamped normalizer.
+            if self.ignore_rv:
+                # vrad (col 5) and e_vrad (col 9) -> NaN so they impute to the
+                # training mean. The v3 sims have no RV; real RV is far OOD.
+                data.x[:, 5] = float("nan")
+                data.x[:, 9] = float("nan")
+
             means = self.normalizer.mean.to(dtype=data.x.dtype)
             nan_mask = torch.isnan(data.x)
             if nan_mask.any():
