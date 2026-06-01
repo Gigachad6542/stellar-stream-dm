@@ -177,6 +177,25 @@ def load_gnn_model_for_sbc(
         )
         if has_profile else 0
     )
+    if has_profile:
+        # Checkpoint weights are authoritative (the train-time --profile-feature-set
+        # is not always persisted into the embedded config). Read the true input
+        # dim from profile_mlp.0.weight and back out the matching feature_set so
+        # both the model build and the embedding cache validation agree.
+        try:
+            _w = payload.get("model_state_dict", {}).get("profile_mlp.0.weight")
+            if _w is not None and int(_w.shape[1]) != profile_dim:
+                _ckpt_dim = int(_w.shape[1])
+                _nb = int(profile_cfg.get("n_bins", 48))
+                _oh = bool(profile_cfg.get("include_stream_onehot", True))
+                for _fs in ("summary", "compact", "multiscale"):
+                    if profile_feature_dim(_nb, _fs, _oh) == _ckpt_dim:
+                        profile_cfg["feature_set"] = _fs
+                        cfg["graph"]["profile_branch"]["feature_set"] = _fs
+                        break
+                profile_dim = _ckpt_dim
+        except Exception:  # pragma: no cover - defensive
+            pass
 
     if model_version == "v2":
         v2_cfg = cfg.get("training_v2", {})

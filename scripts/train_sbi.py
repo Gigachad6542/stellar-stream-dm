@@ -164,9 +164,12 @@ def load_gnn_model(
     ms_cfg = cfg["graph"].get("multi_scale", {})
     profile_cfg = cfg["graph"].get("profile_branch", {})
 
+    # Load the checkpoint once up front: needed both for profile-branch
+    # auto-detection AND for reading the authoritative profile dimension below.
+    payload = torch.load(str(checkpoint_path), map_location="cpu", weights_only=False)
+
     # Auto-detect profile branch from checkpoint if not explicitly set
     if not use_profile_branch:
-        payload = torch.load(str(checkpoint_path), map_location="cpu", weights_only=False)
         if "model_state_dict" in payload:
             use_profile_branch = any(
                 k.startswith("profile_mlp.") for k in payload["model_state_dict"]
@@ -193,6 +196,28 @@ def load_gnn_model(
             str(profile_cfg.get("feature_set", "compact")).lower(),
             bool(profile_cfg.get("include_stream_onehot", True)),
         )
+        # The checkpoint weights are authoritative: the --profile-feature-set used
+        # at train time is not always persisted into the embedded config, so the
+        # config-derived dim can disagree (e.g. summary=157 vs compact default=62).
+        # Read the true input dim from profile_mlp.0.weight and back out the
+        # matching feature_set so the embedding step (which validates the cache
+        # against feature_set) agrees too.
+        try:
+            _w = payload.get("model_state_dict", {}).get("profile_mlp.0.weight")
+            if _w is not None and int(_w.shape[1]) != profile_dim:
+                _ckpt_dim = int(_w.shape[1])
+                _nb = int(profile_cfg.get("n_bins", 48))
+                _oh = bool(profile_cfg.get("include_stream_onehot", True))
+                for _fs in ("summary", "compact", "multiscale"):
+                    if profile_feature_dim(_nb, _fs, _oh) == _ckpt_dim:
+                        profile_cfg["feature_set"] = _fs
+                        cfg["graph"]["profile_branch"]["feature_set"] = _fs
+                        break
+                log.warning("Profile dim: config=%d, checkpoint=%d -> feature_set='%s'.",
+                            profile_dim, _ckpt_dim, profile_cfg.get("feature_set"))
+                profile_dim = _ckpt_dim
+        except Exception:  # pragma: no cover - defensive
+            pass
 
     if model_version == "v2":
         v2_cfg = cfg.get("training_v2", {})
