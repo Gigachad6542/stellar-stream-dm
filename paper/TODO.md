@@ -60,5 +60,8 @@ REGENERATE after v3 (results-dependent):
 - 2026-06-01 ~03:17 — Heartbeat works. Epochs sped to ~3.0 min (earlier 8-9 min
   was my concurrent smoke/poll jobs stealing GPU — lesson: keep concurrent work
   light). Epoch 16/80, val acc ~0.58 (stage1 curriculum), ETA ~06:30. Paper:
-  corrected §4.3 detector-overconfidence methodology against the source changelog
-  (root cause +100σ std-clamp; fix impute/clip/OOD/T=1.065; error-DR AUC 0.93-0.94).
+  corrected §4.3 detector-overconfidence methodology against the source changelog.
+- 2026-06-01 ~03:42 — Epoch 24/80, val acc ~0.57 (still stage1-low-aug, until
+  epoch 50), ETA ~06:30. Paper: added exact membership-contamination figures to
+  §2.2, re-verified by re-running clean_membership (GD-1 137559->987=0.7%,
+  ATLAS 8159->2860=35%, Jhelum 66129->0). Honest catalog-inadequacy caveat.

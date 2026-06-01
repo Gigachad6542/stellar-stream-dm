@@ -88,12 +88,20 @@ disruption age) in `config/streams.yaml`.
 
 ### 2.2 Gaia DR3 membership
 Member catalogs processed from Gaia DR3 to a standardized HDF5 schema (φ1, φ2,
-distance, μ1, μ2, v_rad and per-star uncertainties). We document a key caveat:
-the bundled GD-1 catalog is a broad field selection (~96% contamination); a
-track-consistency cleaner (`scripts/clean_membership.py`) recovers on-track
-members but exposes that a proper external PWB18/STREAMFINDER membership catalog
-is required for a clean GD-1 analysis. *(Quantified per-stream contamination in
-the 2026-05-31 membership-cleaning work.)*
+distance, μ1, μ2, v_rad and per-star uncertainties). We document a key caveat
+that limits the present analysis: the bundled catalogs assign a uniform
+membership probability and are in practice broad field selections rather than
+clean memberships. A track-consistency cleaner
+(`scripts/clean_membership.py`, keeping stars within |Δφ2| < 1° and |Δμ| < 2
+mas yr⁻¹ of the `galstreams` track) quantifies the contamination per stream:
+GD-1 retains only 987 of 137,559 stars (0.7%), ATLAS 2,860 of 8,159 (35%), and
+Jhelum 0 of 66,129 (a pure field/selection failure). For GD-1 the surviving
+members are confined to φ1 ≳ 60° because the catalog's proper-motion
+distribution does not extend to the stream's low-φ1 stars (μ1 ≈ −12.8). We
+therefore treat the bundled GD-1 catalog as inadequate for a clean analysis and
+flag the need for an external Price-Whelan & Bonaca (2018)/STREAMFINDER
+membership catalog as a prerequisite for a headline GD-1 result
+\citep{PriceWhelanBonaca2018,Ibata2021}.
 
 ### 2.3 Multi-epoch / multi-survey kinematics
 To improve the "rewind," radial velocities and proper motions are fused across
