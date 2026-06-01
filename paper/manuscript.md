@@ -157,9 +157,17 @@ literature kinematics).
 ## 4. Detector: GNN + SBI *(methods complete; numbers PENDING v3)*
 
 ### 4.1 Graph construction and GINEConv encoder
-Member stars → k-NN phase-space graph; edge features carry the kinematic
-perturbation signal. GINEConv encoder (~2.3M parameters) with an optional
-density-profile branch (summary features, 48 bins).
+Each stream's member stars are assembled into a k-nearest-neighbour graph
+(k = 8) in normalized phase space (φ1, φ2, μ1, μ2), with up to 1200 stars per
+stream. Nodes carry 18 features; the 5 edge features (Δφ1, Δφ2, Δμ1, Δμ2, and a
+4-D phase-space separation) encode the *local kinematic contrast* that a subhalo
+flyby perturbs. We use a GINEConv encoder (~2.3M parameters), whose edge-conditioned
+message passing \citep{Hu2020gine} is well suited to this edge-borne signal, with
+an optional graph-level density-profile branch (summary features over 48 bins).
+The network has a binary detection head and a regression head for mass-function
+parameters; we train with AdamW (lr 3×10⁻⁴, weight decay 10⁻⁴), cosine-annealing
+warm restarts, gradient clipping, and mixed precision, on a stratified 70/15/15
+train/val/test split (seed 42).
 
 ### 4.2 Simulation-based inference
 GNN embeddings → SNPE-C posteriors for the subhalo mass-function parameters;

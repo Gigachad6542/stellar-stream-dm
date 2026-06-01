@@ -63,6 +63,9 @@ REGENERATE after v3 (results-dependent):
   corrected §4.3 detector-overconfidence methodology against the source changelog.
 - 2026-06-01 ~03:42 — Epoch 24/80, val acc ~0.57. Paper: exact membership-
   contamination figures in §2.2 (GD-1 0.7%, ATLAS 35%, Jhelum 0), re-verified.
+- 2026-06-01 ~04:56 — Epoch 49/80 (entering stage2), best val acc 0.590. ETA
+  ~06:30. Paper: enriched §4.1 with real graph/model hyperparameters (k=8, 18
+  node / 5 edge features, GINEConv 2.3M params, AdamW lr3e-4, 70/15/15 split).
 - 2026-06-01 ~04:32 — Epoch 41/80, val acc 0.588 (best). ETA ~06:30. Paper:
   expanded §6 Statistical framework into full prose (per-stream null, best-of-grid
   look-elsewhere, Stouffer/Fisher, coherence gate, structure-preserving null).
