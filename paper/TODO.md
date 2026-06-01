@@ -61,7 +61,12 @@ REGENERATE after v3 (results-dependent):
   was my concurrent smoke/poll jobs stealing GPU — lesson: keep concurrent work
   light). Epoch 16/80, val acc ~0.58 (stage1 curriculum), ETA ~06:30. Paper:
   corrected §4.3 detector-overconfidence methodology against the source changelog.
-- 2026-06-01 ~03:42 — Epoch 24/80, val acc ~0.57 (still stage1-low-aug, until
-  epoch 50), ETA ~06:30. Paper: added exact membership-contamination figures to
-  §2.2, re-verified by re-running clean_membership (GD-1 137559->987=0.7%,
-  ATLAS 8159->2860=35%, Jhelum 66129->0). Honest catalog-inadequacy caveat.
+- 2026-06-01 ~03:42 — Epoch 24/80, val acc ~0.57. Paper: exact membership-
+  contamination figures in §2.2 (GD-1 0.7%, ATLAS 35%, Jhelum 0), re-verified.
+- 2026-06-01 ~04:07 — Epoch 33/80. WATCH: val BCE ~0.69 (~ln2), acc ~0.58 — weak
+  binary separability on v3. Likely because v3 is a PHYSICS-PRIOR dataset (impact
+  signal entangled/weak, historically ~0.65-0.68 AUC) vs the prior 0.93-AUC run
+  which used a curated *balanced* curriculum. This is an honest, important point
+  (strong prior AUC may be a dataset-construction artifact). Added as Limitation
+  #6. Decision for the human: if v3 detector is weak, consider a balanced/curric
+  training variant for the detector while keeping v3 for the forward model.

@@ -223,6 +223,17 @@ recovery of injected impact parameters. **[PENDING v3 numbers.]**
    (a speed/fidelity trade documented in the training pipeline).
 4. Null-distribution construction confounds (§6).
 5. Forward-model grid resolution and single-encounter assumption.
+6. **Detection signal strength is dataset-dependent.** Earlier high classifier
+   accuracy (AUC ≈ 0.88–0.94) was obtained on a deliberately *balanced* training
+   set in which impact/no-impact were separated independently of the DM family;
+   on physics-prior datasets that preserve realistic impact rates and morphology,
+   cheap baselines reach only AUC ≈ 0.65–0.68. We therefore caution that strong
+   reported detector performance can partly reflect dataset construction rather
+   than intrinsic separability, and we report the v3 (physically-faithful)
+   detector performance honestly in §4.3 with this distinction in mind.
+   `[PENDING v3: early v3 training shows weak binary separability (val acc ≈ 0.58
+   through the low-augmentation curriculum), consistent with a harder, more
+   realistic detection problem — to be confirmed at convergence.]`
 
 ## 9. Reproducibility *(draft)*
 
