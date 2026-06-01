@@ -33,22 +33,50 @@ test-covered codebase.
 
 ---
 
-## 1. Introduction *(draft)*
+## 1. Introduction *(draft prose)*
 
-- The small-scale structure problem and subhalo mass function as a DM
-  discriminator (CDM vs WDM/FDM/SIDM).
-- Stellar streams as sensitive dynamical probes: gaps, spurs, and kinematic
-  perturbations from subhalo flybys (Carlberg; Erkal & Belokurov; Bonaca et al.;
-  Banik et al.).
-- The inference challenge: gaps are degenerate (subhalo vs baryonic GMC vs
-  epicyclic vs survey systematics), and forward models are expensive.
-- Why ML + SBI: amortized inference over expensive simulators; GNNs respect the
-  permutation symmetry and local kinematic structure of member-star sets.
-- The *timeline* idea: rather than only classifying a present-day snapshot,
-  hypothesize an impact, run the clock backward and forward, and compare —
-  turning detection into a constrained forward-model comparison.
-- Our stance on honesty: we report what the data and current simulator support,
-  including null results and the limiting systematics, rather than over-claiming.
+The abundance of low-mass dark-matter (DM) subhalos is one of the sharpest
+predictions distinguishing cold dark matter (CDM) from warm (WDM), fuzzy (FDM),
+and self-interacting (SIDM) alternatives. Below the threshold of galaxy formation
+(≲10⁸ M⊙) these subhalos host no stars, so they can only be found through their
+gravity. Thin, dynamically cold stellar streams — the tidal debris of disrupted
+globular clusters and dwarf galaxies — are among the most sensitive available
+probes: a subhalo flyby imprints a density gap, an off-track spur, and a
+characteristic kinematic ripple whose morphology encodes the perturber's mass and
+impact geometry \citep{Carlberg2012,ErkalBelokurov2015}. The GD-1 stream in
+particular shows a gap-and-spur feature that has been interpreted as dynamical
+evidence for a dark substructure \citep{Bonaca2019}, and population-level analyses
+of stream perturbations have begun to place particle-physics constraints on the
+subhalo mass function \citep{Banik2021}.
+
+Turning these signatures into a measurement is hard for two reasons. First, gaps
+are degenerate: a subhalo impact must be distinguished from baryonic perturbers
+(giant molecular clouds, the bar, spiral arms), epicyclic density variations, and
+survey selection systematics. Second, the forward model — generating a stream and
+perturbing it — is expensive, which makes classical likelihood-based inference
+over many hypotheses costly.
+
+We address both with machine learning and simulation-based inference (SBI). A
+graph neural network (GNN) with edge-conditioned convolutions
+\citep{Hu2020gine} respects the permutation symmetry of a member-star set and the
+locality of kinematic perturbations, producing an embedding that SBI
+\citep{Greenberg2019snpe,Tejero-Cantero2020sbi} maps to a posterior over
+mass-function parameters — amortizing inference across the expensive simulator.
+
+Our central methodological idea is a *timeline forward model*. Rather than
+classifying only a present-day snapshot, we hypothesize a specific impact, use a
+detector to localize and time it, run the clock backward to the unperturbed
+stream, re-inject a grid of candidate encounters with the
+\citet{ErkalBelokurov2015} impulse, re-evolve to the present, and score each
+hypothesis against the observed stream. Detection thus becomes a constrained
+forward-model comparison rather than a one-shot classification, with the impact
+epoch and geometry as inferred quantities.
+
+Throughout we adopt a deliberately conservative stance: we report what the data
+and the *current* simulator actually support — including null results and the
+systematics that limit them — rather than over-claiming a detection. As we show,
+the dominant limitation today is the simulation-to-observation gap, and a
+substantial part of our contribution is diagnosing and partially closing it.
 
 ## 2. Data *(mostly complete)*
 

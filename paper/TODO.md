@@ -13,12 +13,12 @@ Updated each autonomous wake-up. `[ ]` todo, `[~]` in progress, `[x]` done.
 
 ## Manuscript (can progress in parallel — doc only)
 - [x] Scaffold + abstract/intro/methods/data/limitations draft (`manuscript.md`)
-- [ ] Tighten Introduction with proper citations + figure callouts
+- [x] Tighten Introduction with proper citations (prose + \citep) 
 - [ ] Methods: confirm all numbers against code/changelogs; remove any drift
 - [ ] Results: fill `[PENDING v3]` as pipeline outputs land
 - [ ] Limitations: ensure every systematic is honestly stated
 - [ ] Conclusions
-- [ ] Assemble bibliography (BibTeX)
+- [x] Assemble bibliography (BibTeX) → `paper/references.bib` (19 refs)
 - [ ] Decide venue/format (ApJ/MNRAS LaTeX vs arXiv) and convert from Markdown
 
 ## Figures (publishable quality) — 22 exist in `_report_figures/`
@@ -53,5 +53,9 @@ REGENERATE after v3 (results-dependent):
 - 2026-06-01 ~02:10 — Precompute DONE (cache 100000×157). Found+fixed the 45h
   slowdown: error-DR was recomputing profiles on-the-fly every batch; with the
   precomputed cache + `--profile-features-path`, throughput went 0.29→2.34
-  batches/s (8×). Full 80-epoch training relaunched (~6h ETA). Figure inventory
-  done (22 exist; tagged reuse vs regenerate).
+  batches/s. Full 80-epoch training relaunched. Figure inventory done.
+- 2026-06-01 ~02:51 — NOTE: ScheduleWakeup did NOT autonomously fire (user had to
+  prod). Switching heartbeat to background-task-completion notifications, which
+  are reliable. Training healthy at epoch 8/80, steady ~8-9 min/epoch (the 2.34
+  batches/s was an epoch-1 transient; real ~1.1 b/s) → ~10h, ETA ~13:00. Paper:
+  wrote references.bib (19 refs) + rewrote Introduction as cited prose.
