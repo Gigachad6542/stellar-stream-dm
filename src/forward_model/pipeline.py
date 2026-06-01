@@ -216,6 +216,39 @@ def _worker_evaluate(params: dict) -> dict:
     }
 
 
+def _isolated_worker_loop(worker_id, init_args, task_q, result_q) -> None:
+    """Long-lived isolated worker: init once, then evaluate candidates pulled
+    from ``task_q`` until the queue drains.
+
+    Used by ``_run_grid_isolated`` for crash containment. If galpy SIGSEGVs on a
+    pathological orbit, this whole process dies *after* having announced the
+    candidate it was working on via a ``("start", ...)`` message; the supervisor
+    detects the dead process, marks that one candidate failed, and respawns a
+    replacement to finish the rest. A normal Python exception is reported as
+    ``("error", ...)`` and does not kill the worker.
+    """
+    import queue as _queue
+    try:
+        _worker_init(*init_args)
+    except Exception as exc:  # pragma: no cover - defensive
+        result_q.put(("init_fail", worker_id, None, repr(exc)))
+        return
+    while True:
+        try:
+            item = task_q.get(timeout=2.0)
+        except _queue.Empty:
+            break  # queue drained -> exit cleanly
+        if item is None:
+            break
+        idx, params = item
+        result_q.put(("start", worker_id, idx, None))
+        try:
+            res = _worker_evaluate(params)
+            result_q.put(("done", worker_id, idx, res))
+        except Exception as exc:  # non-crash failure: report and keep going
+            result_q.put(("error", worker_id, idx, repr(exc)))
+
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -1018,13 +1051,20 @@ class TimelineForwardModel:
                  len(grid), self.cfg.n_workers)
         t0 = time.perf_counter()
 
-        if self.cfg.n_workers > 1:
+        if not self.cfg.use_fast_mode:
+            # Full-orbit integration can intermittently SIGSEGV inside galpy on a
+            # pathological orbit (uncatchable C fault). Run candidates in isolated
+            # worker processes so a crash skips one candidate instead of killing
+            # the whole run.
+            results = self._run_grid_isolated(grid)
+        elif self.cfg.n_workers > 1:
             results = self._run_grid_parallel(grid)
         else:
             results = self._run_grid_sequential(grid)
 
         # Sort by combined score (lower is better)
         results.sort(key=lambda r: r.score.combined)
+        results = [r for r in results if np.isfinite(r.score.combined)] or results
 
         total_time = time.perf_counter() - t0
         log.info("  Grid complete: %d candidates in %.1f s (%.1f cand/s)",
@@ -1172,6 +1212,167 @@ class TimelineForwardModel:
                              completed, len(grid), rate, best_so_far)
 
         return results
+
+    @staticmethod
+    def _candidate_from_dict(rd: dict) -> "CandidateResult":
+        """Build a CandidateResult from a worker result dict."""
+        return CandidateResult(
+            log10_mass=rd["log10_mass"],
+            t_since_gyr=rd["t_since_gyr"],
+            impact_phi1=rd["impact_phi1"],
+            flyby_vel_kms=rd["flyby_vel_kms"],
+            impact_param_kpc=rd["impact_param_kpc"],
+            scale_radius_kpc=rd["scale_radius_kpc"],
+            score=ScoreResult(
+                density_residual=rd["density_residual"],
+                gap_agreement=rd["gap_agreement"],
+                kinematic_perturbation=rd["kinematic_perturbation"],
+                radial_velocity=rd.get("radial_velocity", 0.0),
+                combined=rd["combined"],
+            ),
+            n_stars_sim=rd["n_stars_sim"],
+            runtime_s=rd["runtime_s"],
+        )
+
+    def _failed_candidate(self, params: dict) -> "CandidateResult":
+        """Sentinel result for a candidate whose worker crashed: combined=inf so
+        it sorts last and is never selected as the best fit."""
+        mass = 10.0 ** params["log10_mass"]
+        return CandidateResult(
+            log10_mass=params["log10_mass"],
+            t_since_gyr=params["t_since_gyr"],
+            impact_phi1=params["impact_phi1"],
+            flyby_vel_kms=self.cfg.flyby_vel_kms,
+            impact_param_kpc=self.cfg.impact_param_kpc,
+            scale_radius_kpc=scale_radius_from_mass(mass),
+            score=ScoreResult(
+                density_residual=float("inf"), gap_agreement=0.0,
+                kinematic_perturbation=0.0, radial_velocity=0.0,
+                combined=float("inf"),
+            ),
+            n_stars_sim=0,
+            runtime_s=0.0,
+        )
+
+    def _run_grid_isolated(self, grid: list[dict]) -> list[CandidateResult]:
+        """Crash-tolerant grid evaluation in isolated worker processes.
+
+        Full-orbit integration can SIGSEGV inside galpy on a pathological orbit
+        (an uncatchable C fault). Workers pull candidates from a queue; if one
+        crashes, the supervisor detects the dead process, marks that single
+        candidate failed (combined=inf), and respawns a replacement to finish the
+        rest. The run therefore always completes.
+        """
+        import multiprocessing as mp
+        import queue as _queue
+
+        # Serialise worker state (mirrors _run_grid_parallel).
+        obs_profile_dict = {
+            "bin_centers": self.obs_profile.bin_centers.tolist(),
+            "density": self.obs_profile.density.tolist(),
+            "counts": self.obs_profile.counts.tolist(),
+            "bin_width_deg": self.obs_profile.bin_width_deg,
+            "n_bins": self.obs_profile.n_bins,
+        }
+        obs_gaps_list = [
+            {"phi1_center": g.phi1_center, "phi1_width": g.phi1_width,
+             "depth": g.depth, "significance": g.significance}
+            for g in self.obs_gaps
+        ]
+        cfg_dict = {
+            "flyby_vel_kms": self.cfg.flyby_vel_kms,
+            "impact_param_kpc": self.cfg.impact_param_kpc,
+            "n_stars_sim": self.cfg.n_stars_sim,
+            "base_seed": self.cfg.base_seed,
+            "density_bin_width_deg": self.cfg.density_bin_width_deg,
+            "kinematic_bin_width_deg": self.cfg.kinematic_bin_width_deg,
+            "gap_detection_min_depth": self.cfg.gap_detection_min_depth,
+            "gap_detection_min_significance": self.cfg.gap_detection_min_significance,
+            "score_weights": asdict(self.cfg.score_weights),
+        }
+        obs_particles_ser = {k: v.tolist() for k, v in self.obs_particles.items()}
+        init_args = (
+            self.cfg.stream_name, self.cfg.config_path, self.cfg.use_fast_mode,
+            None, obs_particles_ser, obs_profile_dict, obs_gaps_list,
+            self.phi1_range, cfg_dict,
+        )
+
+        ctx = mp.get_context("spawn")
+        task_q: "mp.Queue" = ctx.Queue()
+        result_q: "mp.Queue" = ctx.Queue()
+        for i, cand in enumerate(grid):
+            task_q.put((i, cand))
+        n_total = len(grid)
+        # A few workers give isolation + parallelism even when n_workers defaults to 1.
+        n_workers = max(1, min(self.cfg.n_workers if self.cfg.n_workers > 1 else 4, n_total))
+
+        workers: dict = {}
+        inflight: dict = {}
+        next_wid = [0]
+
+        def _spawn():
+            wid = next_wid[0]; next_wid[0] += 1
+            p = ctx.Process(target=_isolated_worker_loop,
+                            args=(wid, init_args, task_q, result_q), daemon=True)
+            p.start(); workers[wid] = p
+            return wid
+
+        log.info("  Starting isolated worker pool with %d workers (crash-tolerant)...", n_workers)
+        for _ in range(n_workers):
+            _spawn()
+
+        results_by_idx: dict = {}
+        t0 = time.perf_counter()
+        while len(results_by_idx) < n_total:
+            try:
+                tag, wid, idx, payload = result_q.get(timeout=1.0)
+                if tag == "start":
+                    inflight[wid] = idx
+                elif tag == "done":
+                    results_by_idx[idx] = payload; inflight.pop(wid, None)
+                elif tag == "error":
+                    results_by_idx.setdefault(idx, None); inflight.pop(wid, None)
+                    log.warning("  Candidate %d failed (exception): %s", idx, payload)
+                elif tag == "init_fail":
+                    log.error("  Worker %d init failed: %s", wid, payload)
+                    workers.pop(wid, None)
+                done = len(results_by_idx)
+                if done % 10 == 0 or done == n_total:
+                    ok = [r for r in results_by_idx.values() if r]
+                    best = min((r["combined"] for r in ok), default=float("nan"))
+                    rate = done / max(time.perf_counter() - t0, 1e-6)
+                    log.info("  [%d/%d] %.1f cand/s, best combined=%.4f", done, n_total, rate, best)
+            except _queue.Empty:
+                pass
+            # Detect crashed workers (segfault => exitcode != 0, no result emitted).
+            for wid, p in list(workers.items()):
+                if not p.is_alive():
+                    if wid in inflight:
+                        idx = inflight.pop(wid)
+                        if idx not in results_by_idx:
+                            results_by_idx[idx] = None
+                            log.warning("  Worker %d crashed (exitcode %s) on candidate %d -> skipped",
+                                        wid, p.exitcode, idx)
+                    workers.pop(wid, None)
+                    if (n_total - len(results_by_idx) - len(inflight)) > 0:
+                        _spawn()
+            if not workers and len(results_by_idx) < n_total:
+                _spawn()  # safety: keep at least one worker alive while work remains
+
+        for p in workers.values():
+            try:
+                p.terminate()
+            except Exception:
+                pass
+
+        n_failed = sum(1 for v in results_by_idx.values() if not v)
+        if n_failed:
+            log.warning("  %d/%d candidates skipped due to integrator crashes.", n_failed, n_total)
+        return [
+            self._candidate_from_dict(results_by_idx[i]) if results_by_idx.get(i)
+            else self._failed_candidate(params)
+            for i, params in enumerate(grid)
+        ]
 
     # ------------------------------------------------------------------
     # Grid refinement (zoom-in)
