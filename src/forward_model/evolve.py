@@ -317,6 +317,8 @@ def _integrate_particles_to_epoch(
     """
     _R_MIN_KPC = 0.5
     _V_MAX_KMS = 2000.0
+    _BATCH_N = 256   # integrate in small chunks: keeps galpy on its vectorised
+                     # C path and bounds the work per call.
 
     n = len(pos_arr)
     results_pos = np.empty((n, 3))
@@ -337,79 +339,74 @@ def _integrate_particles_to_epoch(
             results_vel[grp] = vel_arr[grp]
             continue
 
-        x = pos_arr[grp, 0]; y = pos_arr[grp, 1]; z = pos_arr[grp, 2]
-        vx = vel_arr[grp, 0]; vy = vel_arr[grp, 1]; vz = vel_arr[grp, 2]
-
-        R = np.sqrt(x**2 + y**2)
-        R = np.maximum(R, _R_MIN_KPC)
-
-        phi = np.arctan2(y, x)
-        vR = (x * vx + y * vy) / R
-        vT = (x * vy - y * vx) / R
-
-        # Non-finite guard (CRITICAL): NaN/Inf phase-space coords crash galpy's
-        # dop853_c C integrator with a SIGSEGV *before* any Python exception or
-        # the finite-check below can fire (and np.maximum / `> V_MAX` silently
-        # pass NaN through). A few particles can acquire NaN from a divergent
-        # kick or upstream step. Park any non-finite particle at R=500 kpc, v=0:
-        # it integrates safely and is removed by the phi1/phi2 selection cut.
-        bad = ~(np.isfinite(R) & np.isfinite(phi) & np.isfinite(vR)
-                & np.isfinite(vT) & np.isfinite(z) & np.isfinite(vz))
-        if bad.any():
-            R = np.where(bad, 500.0, R)
-            phi = np.where(bad, 0.0, phi)
-            vR = np.where(bad, 0.0, vR)
-            vT = np.where(bad, 0.0, vT)
-            z = np.where(bad, 0.0, z)
-            vz = np.where(bad, 0.0, vz)
-
-        # Speed guard
-        speed = np.sqrt(vR**2 + vT**2 + vz**2)
-        too_fast = speed > _V_MAX_KMS
-        if too_fast.any():
-            scale = np.where(too_fast, _V_MAX_KMS / np.maximum(speed, 1.0), 1.0)
-            vR = vR * scale; vT = vT * scale; vz = vz * scale
-
         # Time grid: from t_start to target_epoch
         n_int = max(8, int(abs(dt) * 40))  # ~25 Myr resolution
         t_grid = np.linspace(float(t_start), float(target_epoch_gyr), n_int) * u.Gyr
 
-        orb = Orbit(
-            vxvv=[R * u.kpc, vR * u.km / u.s, vT * u.km / u.s,
-                  z * u.kpc, vz * u.km / u.s, phi * u.rad],
-            ro=_RO, vo=_VO,
-        )
+        # Integrate in fixed-size sub-batches. This keeps each galpy call small
+        # and predictable; combined with numcores=1 below it prevents galpy from
+        # spawning its parallel_map multiprocessing workers, which intermittently
+        # SIGSEGV on Windows when galpy uses its Python integrator fallback.
+        for b0 in range(0, len(grp), _BATCH_N):
+            bidx = grp[b0:b0 + _BATCH_N]
+            x = pos_arr[bidx, 0]; y = pos_arr[bidx, 1]; z = pos_arr[bidx, 2]
+            vx = vel_arr[bidx, 0]; vy = vel_arr[bidx, 1]; vz = vel_arr[bidx, 2]
 
-        try:
-            orb.integrate(t_grid, potential, method="dop853_c", progressbar=False)
-        except Exception:
+            R = np.sqrt(x**2 + y**2)
+            R = np.maximum(R, _R_MIN_KPC)
+            phi = np.arctan2(y, x)
+            vR = (x * vx + y * vy) / R
+            vT = (x * vy - y * vx) / R
+
+            # Non-finite guard (CRITICAL): NaN/Inf phase-space coords crash
+            # galpy's integrator with a SIGSEGV before any Python exception fires
+            # (np.maximum / `> V_MAX` silently pass NaN through). Park any
+            # non-finite particle at R=500 kpc, v=0 (removed by the selection cut).
+            bad = ~(np.isfinite(R) & np.isfinite(phi) & np.isfinite(vR)
+                    & np.isfinite(vT) & np.isfinite(z) & np.isfinite(vz))
+            if bad.any():
+                R = np.where(bad, 500.0, R); phi = np.where(bad, 0.0, phi)
+                vR = np.where(bad, 0.0, vR); vT = np.where(bad, 0.0, vT)
+                z = np.where(bad, 0.0, z); vz = np.where(bad, 0.0, vz)
+
+            # Speed guard
+            speed = np.sqrt(vR**2 + vT**2 + vz**2)
+            too_fast = speed > _V_MAX_KMS
+            if too_fast.any():
+                scale = np.where(too_fast, _V_MAX_KMS / np.maximum(speed, 1.0), 1.0)
+                vR = vR * scale; vT = vT * scale; vz = vz * scale
+
             orb = Orbit(
                 vxvv=[R * u.kpc, vR * u.km / u.s, vT * u.km / u.s,
                       z * u.kpc, vz * u.km / u.s, phi * u.rad],
                 ro=_RO, vo=_VO,
             )
-            orb.integrate(t_grid, potential, method="leapfrog_c", progressbar=False)
 
-        if not np.isfinite(orb.orbit).all():
-            # Fallback to leapfrog
-            orb = Orbit(
-                vxvv=[R * u.kpc, vR * u.km / u.s, vT * u.km / u.s,
-                      z * u.kpc, vz * u.km / u.s, phi * u.rad],
-                ro=_RO, vo=_VO,
-            )
-            orb.integrate(t_grid, potential, method="leapfrog_c", progressbar=False)
-            if not np.isfinite(orb.orbit).all():
-                results_pos[grp] = np.array([500.0, 0.0, 0.0])
-                results_vel[grp] = 0.0
+            ok = True
+            try:
+                # numcores=1: run galpy's parallel_map serially (no multiprocessing
+                # spawn) -- the source of the intermittent Windows SIGSEGV.
+                orb.integrate(t_grid, potential, method="dop853_c",
+                              progressbar=False, numcores=1)
+            except Exception:
+                ok = False
+            if ok and not np.isfinite(orb.orbit).all():
+                ok = False
+
+            if not ok:
+                # Do NOT re-integrate (the retry path is the crash-prone one);
+                # park this batch as escaped -- removed by the phi1/phi2 cut.
+                results_pos[bidx] = np.array([500.0, 0.0, 0.0])
+                results_vel[bidx] = 0.0
                 continue
 
-        t_end = t_grid[-1]
-        results_pos[grp, 0] = np.atleast_1d(np.asarray(orb.x(t_end, use_physical=True)))
-        results_pos[grp, 1] = np.atleast_1d(np.asarray(orb.y(t_end, use_physical=True)))
-        results_pos[grp, 2] = np.atleast_1d(np.asarray(orb.z(t_end, use_physical=True)))
-        results_vel[grp, 0] = np.atleast_1d(np.asarray(orb.vx(t_end, use_physical=True)))
-        results_vel[grp, 1] = np.atleast_1d(np.asarray(orb.vy(t_end, use_physical=True)))
-        results_vel[grp, 2] = np.atleast_1d(np.asarray(orb.vz(t_end, use_physical=True)))
+            t_end = t_grid[-1]
+            results_pos[bidx, 0] = np.atleast_1d(np.asarray(orb.x(t_end, use_physical=True)))
+            results_pos[bidx, 1] = np.atleast_1d(np.asarray(orb.y(t_end, use_physical=True)))
+            results_pos[bidx, 2] = np.atleast_1d(np.asarray(orb.z(t_end, use_physical=True)))
+            results_vel[bidx, 0] = np.atleast_1d(np.asarray(orb.vx(t_end, use_physical=True)))
+            results_vel[bidx, 1] = np.atleast_1d(np.asarray(orb.vy(t_end, use_physical=True)))
+            results_vel[bidx, 2] = np.atleast_1d(np.asarray(orb.vz(t_end, use_physical=True)))
 
     return results_pos, results_vel
 
