@@ -158,15 +158,25 @@ GNN embeddings → SNPE-C posteriors for the subhalo mass-function parameters;
 SBC and TARP coverage diagnostics.
 
 ### 4.3 Detector overconfidence and error-domain randomization
-We diagnosed pathological overconfidence (p ≈ 1.0) as an input-normalization
-failure: an unmeasured-feature standard-deviation clamp pushed `e_vrad` to
-≈ +100σ out-of-distribution. The fix imputes unmeasured features to the training
-mean, clips to ±5σ, flags OOD inputs, and applies temperature scaling; combined
-with **error-domain randomization** (per-star error draws + RV masking during
-training) this closes much of the sim-to-real gap. Result: the spurious
-391σ→13σ collapse and p 0.98→0.16 on real GD-1, validation AUC ≈ 0.937.
-**[PENDING v3: re-trained on `simulations_v3_track6d`; report AUC, calibration,
-real-stream scores.]**
+We diagnosed pathological overconfidence (p_impact = 1.0000 on real GD-1) as an
+input-normalization failure rather than a modeling or calibration problem.
+Unmeasured error columns had been filled with fake constants and the feature
+normalizer clamped their (near-zero) standard deviation to 0.01; any real-data
+offset therefore exploded after standardization — real GD-1 `e_vrad` landed at
+≈ +100σ, saturating the logit. The inference-side fix (i) imputes unmeasured
+features to the training mean (≈ 0 post-normalization), (ii) clips standardized
+features to ±5σ so no single out-of-distribution feature can saturate the logit,
+(iii) records OOD diagnostics (`ood_max_sigma`, `ood_frac_clipped`) and flags
+predictions as unreliable when inputs are out-of-distribution, and (iv) applies a
+temperature (T = 1.065) from `calibration.json`. This alone moved p_impact from
+1.0000 to 0.9829 while *honestly surfacing* the residual ≈ 391σ OOD severity of
+the (contaminated) real GD-1 catalog. We then **retrained with error-domain
+randomization** — per-star errors drawn log-uniformly over realistic ranges plus
+random RV masking each epoch — so the detector sees the observational noise it
+will face. The error-DR detector discriminates with AUC ≈ 0.93–0.94 (mean
+p(neg) ≈ 0.18 vs p(pos) ≈ 0.84; ~1% of sim-negatives falsely confident).
+**[PENDING v3: re-trained on `simulations_v3_track6d` with the cached error-DR
+profiles; report AUC, reliability diagram, and real-stream p_impact here.]**
 
 ## 5. Timeline forward model *(methods complete; results PENDING v3)*
 

@@ -56,6 +56,9 @@ REGENERATE after v3 (results-dependent):
   batches/s. Full 80-epoch training relaunched. Figure inventory done.
 - 2026-06-01 ~02:51 — NOTE: ScheduleWakeup did NOT autonomously fire (user had to
   prod). Switching heartbeat to background-task-completion notifications, which
-  are reliable. Training healthy at epoch 8/80, steady ~8-9 min/epoch (the 2.34
-  batches/s was an epoch-1 transient; real ~1.1 b/s) → ~10h, ETA ~13:00. Paper:
-  wrote references.bib (19 refs) + rewrote Introduction as cited prose.
+  are reliable. Paper: wrote references.bib (19 refs) + rewrote Introduction.
+- 2026-06-01 ~03:17 — Heartbeat works. Epochs sped to ~3.0 min (earlier 8-9 min
+  was my concurrent smoke/poll jobs stealing GPU — lesson: keep concurrent work
+  light). Epoch 16/80, val acc ~0.58 (stage1 curriculum), ETA ~06:30. Paper:
+  corrected §4.3 detector-overconfidence methodology against the source changelog
+  (root cause +100σ std-clamp; fix impute/clip/OOD/T=1.065; error-DR AUC 0.93-0.94).
