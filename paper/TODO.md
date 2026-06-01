@@ -63,6 +63,9 @@ REGENERATE after v3 (results-dependent):
   corrected §4.3 detector-overconfidence methodology against the source changelog.
 - 2026-06-01 ~03:42 — Epoch 24/80, val acc ~0.57. Paper: exact membership-
   contamination figures in §2.2 (GD-1 0.7%, ATLAS 35%, Jhelum 0), re-verified.
+- 2026-06-01 ~05:45 — Epoch 65/80, val acc ~0.59. ETA ~06:30. Paper: drafted §10
+  Conclusions (honest narrative: methods contribution, cautionary detector result,
+  honest population inference; numbers PENDING). Manuscript now full prose end-to-end.
 - 2026-06-01 ~05:21 — Epoch 57/80, best val acc 0.591. Prepped post-training:
   calibrate_detector writes calibration.json with roc_auc (prior balanced run =
   0.937, T=0.78). Will read v3 AUC from there on completion. Paper: framed §4.3's

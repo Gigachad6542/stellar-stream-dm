@@ -277,7 +277,43 @@ a categorized `scripts/` index, and changelogs documenting every methodological
 decision. All datasets are regenerable from `scripts/generate_training_data.py`
 (thread-pinned, deterministic per-seed).
 
-## 10. Conclusions *(PENDING v3)*
+## 10. Conclusions *(draft; numbers PENDING v3)*
+
+We have built and documented a complete, reproducible pipeline for searching for
+dark-matter subhalo impacts in Milky Way stellar streams, comprising a
+literature-anchored stream simulator, a GNN+SBI detector, and a novel *timeline
+forward model* that recasts detection as a constrained rewind/re-impact/re-evolve
+comparison against fused multi-survey kinematics. Our contributions are primarily
+methodological and, deliberately, honest about what current data and simulations
+support:
+
+1. **A diagnosed and partially closed simulation-to-observation gap.** Replacing a
+   geometry-only progenitor-IC optimizer with a track-anchored 6D initial
+   condition fixed kinematically wrong orbits (Table 1), and error-domain
+   randomization with corrected input normalization removed a pathological
+   detector overconfidence that was an OOD input-handling artifact, not real
+   skill.
+
+2. **A cautionary, reproducible result on detector performance.** `[PENDING v3]`
+   On the physically-faithful v3 simulations the detector is substantially weaker
+   (val accuracy ≈ 0.59; AUC to be reported) than the AUC ≈ 0.94 obtained on a
+   balanced curriculum dataset — evidence that strong reported performance can be
+   an artifact of training-set construction rather than intrinsic separability.
+
+3. **An honest population-level inference.** `[PENDING v3]` Applying the
+   look-elsewhere–corrected, coherence-gated multi-stream framework to the
+   corrected simulations and public data, we report `[a non-detection consistent
+   with CDM / an upper limit on the subhalo impact rate]`, and we are explicit
+   about the residual systematics (membership contamination, the spray
+   length-vs-width tension, null construction) that bound it.
+
+The overarching message is that closing the sim-to-real gap *raises* the bar for
+claimed detections, and that careful, reproducible methodology — including the
+willingness to report null and cautionary results — is essential for turning
+stellar streams into a quantitative dark-matter probe. Future work: a
+correctly-correlated Fardal/streakline release to resolve the width-vs-length
+tension, an external PWB18/STREAMFINDER GD-1 membership catalog, and a
+structure-preserving null for the headline significance.
 
 ---
 
