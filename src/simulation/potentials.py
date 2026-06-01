@@ -55,6 +55,21 @@ from galpy.potential import (
     evaluateRforces,
 )
 
+# --- Force galpy's parallel_map to run serially (numcores=1) ---
+# When galpy falls back to its Python orbit integrator (integrateFullOrbit ->
+# parallel_map), parallel_map defaults numcores to the CPU count and spawns that
+# many multiprocessing workers. On Windows this intermittently crashes the
+# process with STATUS_ACCESS_VIOLATION / STATUS_ILLEGAL_INSTRUCTION inside the
+# spawned numerical workers (an uncatchable C-level fault). Pinning galpy's
+# worker count to 1 makes the fallback run in-process (no spawn), which removes
+# the crash. The C integrator (dop853_c) is unaffected. Importing this module
+# (the central potential factory) applies the patch everywhere integration runs.
+try:
+    import galpy.util.multi as _galpy_multi
+    _galpy_multi._ncpus = 1
+except Exception:  # pragma: no cover - defensive
+    pass
+
 log = logging.getLogger(__name__)
 
 # Galactocentric reference frame

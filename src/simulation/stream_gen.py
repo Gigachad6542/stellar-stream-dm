@@ -966,7 +966,7 @@ def generate_stream(
             # (multiprocessing.Pool with maxtasksperchild), so any remaining crash
             # loses only one simulation, not an entire batch.
             # If dop853_c returns NaN (non-crash error), fall back to leapfrog_c.
-            orb.integrate(t_fwd, potential, method="dop853_c", progressbar=False)
+            orb.integrate(t_fwd, potential, method="dop853_c", progressbar=False, numcores=1)
 
             if not np.isfinite(orb.orbit).all():
                 orb = Orbit(
@@ -974,7 +974,7 @@ def generate_stream(
                           z * u.kpc, vz * u.km / u.s, phi * u.rad],
                     ro=_RO, vo=_VO,
                 )
-                orb.integrate(t_fwd, potential, method="leapfrog_c", progressbar=False)
+                orb.integrate(t_fwd, potential, method="leapfrog_c", progressbar=False, numcores=1)
                 if not np.isfinite(orb.orbit).all():
                     results_pos[grp] = np.array([500.0, 0.0, 0.0])
                     results_vel[grp] = 0.0
