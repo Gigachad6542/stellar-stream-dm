@@ -347,6 +347,22 @@ def _integrate_particles_to_epoch(
         vR = (x * vx + y * vy) / R
         vT = (x * vy - y * vx) / R
 
+        # Non-finite guard (CRITICAL): NaN/Inf phase-space coords crash galpy's
+        # dop853_c C integrator with a SIGSEGV *before* any Python exception or
+        # the finite-check below can fire (and np.maximum / `> V_MAX` silently
+        # pass NaN through). A few particles can acquire NaN from a divergent
+        # kick or upstream step. Park any non-finite particle at R=500 kpc, v=0:
+        # it integrates safely and is removed by the phi1/phi2 selection cut.
+        bad = ~(np.isfinite(R) & np.isfinite(phi) & np.isfinite(vR)
+                & np.isfinite(vT) & np.isfinite(z) & np.isfinite(vz))
+        if bad.any():
+            R = np.where(bad, 500.0, R)
+            phi = np.where(bad, 0.0, phi)
+            vR = np.where(bad, 0.0, vR)
+            vT = np.where(bad, 0.0, vT)
+            z = np.where(bad, 0.0, z)
+            vz = np.where(bad, 0.0, vz)
+
         # Speed guard
         speed = np.sqrt(vR**2 + vT**2 + vz**2)
         too_fast = speed > _V_MAX_KMS

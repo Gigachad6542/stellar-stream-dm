@@ -648,3 +648,40 @@ class TestDMModelComparison:
         """Unknown DM model should raise ValueError."""
         with pytest.raises(ValueError, match="Unknown DM model"):
             subhalo_profile_for_model("MOND", 1e7)
+
+
+class TestIntegrationNaNGuard:
+    """Regression: non-finite particle coords must not crash the C integrator.
+
+    NaN/Inf phase-space coordinates passed to galpy's dop853_c integrator cause
+    a SIGSEGV (a C-level crash, not a Python exception). _integrate_particles_to_epoch
+    must sanitize them first. See the full-orbit injection-recovery segfault fix.
+    """
+
+    def test_nan_particles_do_not_crash_integration(self):
+        from galpy.potential import MWPotential2014
+        from src.forward_model.evolve import _integrate_particles_to_epoch
+
+        # 4 sane disc-like particles + 2 poisoned with NaN/Inf
+        pos = np.array([
+            [8.0, 0.0, 0.0],
+            [10.0, 2.0, 0.5],
+            [7.0, -3.0, -0.2],
+            [12.0, 1.0, 0.1],
+            [np.nan, 0.0, 0.0],     # poisoned position
+            [9.0, np.inf, 0.0],     # poisoned position
+        ])
+        vel = np.array([
+            [0.0, 220.0, 0.0],
+            [-30.0, 200.0, 10.0],
+            [20.0, 180.0, -5.0],
+            [0.0, np.nan, 0.0],     # poisoned velocity
+            [10.0, 200.0, 0.0],
+            [0.0, 210.0, 0.0],
+        ])
+        t_start = np.full(len(pos), -0.5)  # 0.5 Gyr in the past
+        # Must return without segfault, with finite, correctly-shaped output.
+        pf, vf = _integrate_particles_to_epoch(pos, vel, t_start, 0.0, MWPotential2014)
+        assert pf.shape == pos.shape and vf.shape == vel.shape
+        assert np.isfinite(pf).all(), "integrated positions must be finite"
+        assert np.isfinite(vf).all(), "integrated velocities must be finite"
