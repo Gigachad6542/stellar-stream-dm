@@ -96,24 +96,7 @@ Run roughly in this order. This is the live pipeline.
 | `audit_v2_signal_thresholds.py` | Audit whether V2 impact labels are learnable before a GNN run. |
 | `diagnose_v2_signal.py` | Diagnose whether a V2 binary target is visible in simulated features. |
 
-## 8. Diagnostics & dev one-offs (archival candidates)
-
-| Script | Purpose |
-|---|---|
-| `debug_stream_gen.py` | Debug why `generate_stream` produced 0 particles. |
-| `diag_particle_positions.py` | Show where spray particles land before selection cuts. |
-| `inspect_benchmark.py` | Quick inspection of benchmark HDF5 output. |
-| `demo_forward_pass.py` | Demo: pass real data through the trained GNN + posteriors. |
-| `full_pipeline_test.py` | Full pipeline run with each stage timed. |
-| `test_ic_optimizer.py` | Quick test of the v3 progenitor IC optimiser. |
-| `test_model_comparison.py` | Run all 4 DM models on GD-1 and compare. |
-| `test_multi_encounter.py` | Quick multi-encounter evaluation test. |
-| `train_import_test.py` | Import smoke test (has a stray BOM — safe to delete). |
-
-> The `test_*.py` files here are standalone scripts, **not** pytest tests — the
-> real unit tests live in `tests/`.
-
-## 9. Experimental — JAX integrator (not in the default path)
+## 8. Experimental — JAX integrator (not in the default path)
 
 | Script | Purpose |
 |---|---|

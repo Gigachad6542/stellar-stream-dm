@@ -1,5 +1,14 @@
 # V2 Detector-Balanced Runbook
 
+> **⚠️ SUPERSEDED (2026-06-01).** This runbook describes the older
+> `detector_balanced` / `v2_plan2` / `signal_ladder` datasets, which have been
+> deleted. The current path uses the regenerated `data/simulations_v3_track6d`
+> dataset (track-6D IC + calibrated spray) with the error-DR detector recipe:
+> `train_v2.py --binary-target impact_timeline_detectable --label-schema timeline
+> --regression-target timeline_effective --use-profile-branch
+> --profile-feature-set summary --error-dr --epochs 80` → `calibrate_detector.py
+> --error-dr` → `run_multistream_analysis.py`. Kept below for historical context.
+
 This runbook tracks the current V2 path. It deliberately ignores the older
 report/PDF work and focuses on simulation, detector training, and later SBI.
 
