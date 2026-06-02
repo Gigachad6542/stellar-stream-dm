@@ -1081,3 +1081,71 @@ def _pos_vel_to_orbit(pos_kpc: np.ndarray, vel_kms: np.ndarray) -> Orbit:
               z * u.kpc, vz * u.km / u.s, phi * u.rad],
         ro=_RO, vo=_VO,
     )
+
+
+def generate_stream_spray(
+    stream_name: str,
+    potential: list,
+    n_stars: int = 1000,
+    seed: int = 0,
+    tdisrupt_gyr: Optional[float] = None,
+    prog_mass_msun: Optional[float] = None,
+    config_path: str = "config/streams.yaml",
+    mws=None,
+    subhalo_orbit_pot=None,   # optional MovingObjectPotential for an impact
+) -> StreamParticles:
+    """Generate a stream with galpy's VALIDATED Fardal (2015) particle spray.
+
+    Replaces the homemade isotropic spray. streamspraydf releases particles from
+    the Lagrange points with the correct correlated offsets and integrates them in
+    ``potential`` to the present -> smooth, thin streams by construction (no
+    spray_age hack, no isotropic-kick fudge).
+
+    If ``subhalo_orbit_pot`` (a galpy MovingObjectPotential for a subhalo on its
+    flyby) is given, it is added to the integration potential so the stream forms
+    WITH the impact gap -- the physically-correct, fast impact injection.
+
+    Returns StreamParticles (same schema as generate_stream).
+    """
+    import numpy as _np
+    import astropy.units as _u
+    from galpy.df import streamspraydf
+
+    if mws is None:
+        import galstreams
+        mws = galstreams.MWStreams(verbose=False)
+    sc = _load_stream_config(stream_name, config_path)
+    frame = mws[sc["galstreams_key"]].stream_frame
+
+    if tdisrupt_gyr is None:
+        tdisrupt_gyr = float(sc.get("spray_tdisrupt_gyr",
+                                    sc.get("disruption_age_gyr", 3.0)))
+    if prog_mass_msun is None:
+        prog_mass_msun = float(sc.get("prog_mass_solar", 1e4))
+
+    ic = set_progenitor_ic_track6d(stream_name, config_path, mws=mws)
+    prog = _pos_vel_to_orbit(_np.array(ic["pos_kpc"]), _np.array(ic["vel_kms"]))
+
+    # Integration potential: MW (+ the moving subhalo, if an impact is requested).
+    # Adding the subhalo-on-its-flyby makes the gap form naturally during the
+    # spray integration (the physically-correct, fast impact injection).
+    base_pot = list(potential) if isinstance(potential, list) else [potential]
+    pot_int = base_pot if subhalo_orbit_pot is None else base_pot + [subhalo_orbit_pot]
+
+    _np.random.seed(seed)
+    spdf = streamspraydf(prog_mass_msun * _u.Msun, progenitor=prog,
+                         pot=pot_int, tdisrupt=tdisrupt_gyr * _u.Gyr)
+    o = spdf.sample(n=n_stars, return_orbit=True, integrate=True)
+
+    pos = _np.array([o.x(use_physical=True), o.y(use_physical=True), o.z(use_physical=True)])
+    vel = _np.array([o.vx(use_physical=True), o.vy(use_physical=True), o.vz(use_physical=True)])
+    phi1, phi2, dist, pm1, pm2, vrad = _galactocentric_to_stream_coords(pos, vel, frame)
+
+    # phi1/phi2 selection to the observed window (mirror generate_stream)
+    phi1_min = sc.get("phi1_min", -180.0); phi1_max = sc.get("phi1_max", 180.0)
+    mask = (phi1 >= phi1_min) & (phi1 <= phi1_max) & _np.isfinite(phi1) & _np.isfinite(phi2)
+    return StreamParticles(
+        phi1=phi1[mask], phi2=phi2[mask], dist=dist[mask],
+        pm1=pm1[mask], pm2=pm2[mask], vrad=vrad[mask],
+        xyz_kpc=pos[:, mask], vxyz_kms=vel[:, mask],
+    )
