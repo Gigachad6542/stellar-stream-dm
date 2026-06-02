@@ -72,7 +72,11 @@ def scale_radius_from_mass(m_solar: float, density_profile: str = "NFW") -> floa
     For SIDM: use a cored profile with r_core ~ 0.3 * r_s.
     """
     c = concentration_from_mass(m_solar)
-    r_200_kpc = (3.0 * m_solar / (4.0 * np.pi * 200.0 * 2.775e11 * (70.0 / 100.0) ** 2)) ** (1.0 / 3.0)
+    # rho_crit,0 = 2.775e11 h^2 Msun/Mpc^3 = 277.5 h^2 Msun/kpc^3. The previous
+    # code used the Mpc^3 value but labelled the result kpc, making r_200 (and
+    # hence r_s) 1000x too small -> point-like subhalos. Use Msun/kpc^3 here.
+    rho_crit_kpc3 = 277.5 * (70.0 / 100.0) ** 2  # Msun/kpc^3
+    r_200_kpc = (3.0 * m_solar / (4.0 * np.pi * 200.0 * rho_crit_kpc3)) ** (1.0 / 3.0)
     r_s_kpc = r_200_kpc / c
     if density_profile == "isothermal_core_NFW":
         r_s_kpc *= 0.5  # SIDM cores reduce effective scale radius
