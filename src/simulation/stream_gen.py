@@ -1149,3 +1149,153 @@ def generate_stream_spray(
         pm1=pm1[mask], pm2=pm2[mask], vrad=vrad[mask],
         xyz_kpc=pos[:, mask], vxyz_kms=vel[:, mask],
     )
+
+
+# ---------------------------------------------------------------------------
+# streamdf / streamgapdf generator  (Bovy 2014; Sanders, Bovy & Erkal 2016)
+#
+# This is the IMPACT generator that replaces the homemade rewind/kick. The
+# no-impact class is sampled from streamdf and the impact class from streamgapdf
+# (a streamdf subclass) so both share the same smooth action-angle track -- the
+# ONLY difference between the two classes is the subhalo gap, so a detector
+# cannot cheat on a generator artefact. Validated 2026-06-02: strong impacts give
+# gap-depth ~0.86-1.0 vs ~0.3 no-impact (G6 separability >> homemade 0.57).
+#
+# Hard-won setup (do not change without re-checking):
+#   * b for actionAngleIsochroneApprox MUST come from estimateBIsochrone(pot,
+#     R/ro, z/ro) -- a wrong b raises "time not in integration domain".
+#   * impact_angle sign must match the arm (leading=True -> positive angle).
+#   * nTrackChunks=5 is the speed/quality sweet spot (~15s vs ~21s at 11).
+# ---------------------------------------------------------------------------
+
+# Per-process cache: stream_name -> (streamdf, common_kwargs, frame, sc, sigv)
+_STREAMDF_BASE_CACHE: dict = {}
+
+
+def _streamdf_sample_to_cartesian(xv: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Convert a streamdf/streamgapdf sample [6,N] to galactocentric Cartesian.
+
+    streamdf.sample returns (R, vR, vT, z, vz, phi). Older/newer galpy versions
+    differ on whether this is in natural units (R in units of ro) or physical kpc;
+    detect by magnitude (Galactic R is many kpc, so natural R is O(1)).
+    """
+    xv = np.asarray(xv, float)
+    R, vR, vT, z, vz, phi = xv
+    if np.nanmedian(np.abs(R)) < 3.0:        # natural units -> physical
+        R, z = R * _RO, z * _RO
+        vR, vT, vz = vR * _VO, vT * _VO, vz * _VO
+    x = R * np.cos(phi)
+    y = R * np.sin(phi)
+    vx = vR * np.cos(phi) - vT * np.sin(phi)
+    vy = vR * np.sin(phi) + vT * np.cos(phi)
+    pos = np.array([x, y, z])
+    vel = np.array([vx, vy, vz])
+    return pos, vel
+
+
+def _get_streamdf_base(stream_name: str, potential, config_path: str, mws):
+    """Build (and cache per process) the smooth streamdf base for a stream.
+
+    Returns (sdf, common_kwargs, frame, sc, sigv). The ~12s action-angle setup is
+    paid once per worker per stream; subsequent no-impact samples are ~free and
+    each streamgapdf reuses the cached aA/progenitor (only the impact transform,
+    ~15s, is re-done per impact).
+    """
+    if stream_name in _STREAMDF_BASE_CACHE:
+        return _STREAMDF_BASE_CACHE[stream_name]
+    from galpy.df import streamdf  # noqa: PLC0415
+    from galpy.actionAngle import (  # noqa: PLC0415
+        actionAngleIsochroneApprox,
+        estimateBIsochrone,
+    )
+    if mws is None:
+        import galstreams  # noqa: PLC0415
+        mws = galstreams.MWStreams(verbose=False)
+    sc = _load_stream_config(stream_name, config_path)
+    frame = mws[sc["galstreams_key"]].stream_frame
+    ic = set_progenitor_ic_track6d(stream_name, config_path, mws=mws)
+    prog = _pos_vel_to_orbit(np.array(ic["pos_kpc"]), np.array(ic["vel_kms"]))
+    pot = potential
+    b = float(estimateBIsochrone(
+        pot, prog.R(use_physical=True) / _RO, prog.z(use_physical=True) / _RO))
+    aA = actionAngleIsochroneApprox(pot=pot, b=b)
+    sigv = float(sc.get("sigv_kms", 0.5))
+    tdis = float(sc.get("spray_tdisrupt_gyr", sc.get("disruption_age_gyr", 3.0)))
+    common = dict(progenitor=prog, pot=pot, aA=aA, leading=True,
+                  nTrackChunks=5, tdisrupt=tdis * u.Gyr, ro=_RO, vo=_VO)
+    sdf = streamdf(sigv * u.km / u.s, **common)
+    base = (sdf, common, frame, sc, sigv)
+    _STREAMDF_BASE_CACHE[stream_name] = base
+    return base
+
+
+def sample_impact_params(rng: np.random.Generator,
+                         log10_mass_range=(7.5, 8.7),
+                         impactb_kpc_range=(0.0, 0.35),
+                         timpact_gyr_range=(0.2, 1.5),
+                         impact_angle_rad_range=(0.2, 0.7),
+                         vsub_kms: float = 150.0) -> dict:
+    """Draw a single-subhalo encounter for streamgapdf (leading arm, +angle).
+
+    Default ranges target the DETECTABLE regime (mass >= 10^7.5 Msun, impact
+    parameter b <= 0.35 kpc): the gap-depth scan (2026-06-02) shows these give
+    gap-depth ~0.75-1.0, cleanly above the ~0.33 no-impact Poisson floor.
+    Weaker encounters (high b, low mass) are physically undetectable and only add
+    label noise to a binary detector; characterising them is the SBI stage's job.
+    """
+    return {
+        "mass": float(10.0 ** rng.uniform(*log10_mass_range)),
+        "impactb_kpc": float(rng.uniform(*impactb_kpc_range)),
+        "timpact_gyr": float(rng.uniform(*timpact_gyr_range)),
+        "impact_angle_rad": float(rng.uniform(*impact_angle_rad_range)),
+        "vsub_kms": float(vsub_kms),
+    }
+
+
+def generate_stream_df(
+    stream_name: str,
+    potential,
+    n_stars: int = 1000,
+    seed: int = 0,
+    impact: bool = False,
+    impact_params: Optional[dict] = None,
+    config_path: str = "config/streams.yaml",
+    mws=None,
+) -> StreamParticles:
+    """Generate a stream from streamdf (no-impact) or streamgapdf (impact).
+
+    The smooth action-angle base is cached per process; no-impact draws are fast,
+    each impact pays ~15s for the streamgapdf impact transform. Returns
+    StreamParticles in the same schema as generate_stream / generate_stream_spray.
+    """
+    from src.simulation.subhalo import scale_radius_from_mass  # noqa: PLC0415
+    sdf, common, frame, sc, sigv = _get_streamdf_base(
+        stream_name, potential, config_path, mws)
+    np.random.seed(seed)
+
+    if not impact:
+        df = sdf
+    else:
+        from galpy.df import streamgapdf  # noqa: PLC0415
+        p = impact_params or sample_impact_params(np.random.default_rng(seed))
+        m = float(p["mass"])
+        df = streamgapdf(
+            sigv * u.km / u.s, **common,
+            impactb=float(p["impactb_kpc"]) * u.kpc,
+            subhalovel=np.array([0.0, float(p["vsub_kms"]), 0.0]) * u.km / u.s,
+            timpact=float(p["timpact_gyr"]) * u.Gyr,
+            impact_angle=float(p["impact_angle_rad"]) * u.rad,
+            GM=m * u.Msun, rs=scale_radius_from_mass(m) * u.kpc,
+        )
+
+    xv = df.sample(n=n_stars)
+    pos, vel = _streamdf_sample_to_cartesian(xv)
+    phi1, phi2, dist, pm1, pm2, vrad = _galactocentric_to_stream_coords(pos, vel, frame)
+
+    phi1_min = sc.get("phi1_min", -180.0); phi1_max = sc.get("phi1_max", 180.0)
+    mask = (phi1 >= phi1_min) & (phi1 <= phi1_max) & np.isfinite(phi1) & np.isfinite(phi2)
+    return StreamParticles(
+        phi1=phi1[mask], phi2=phi2[mask], dist=dist[mask],
+        pm1=pm1[mask], pm2=pm2[mask], vrad=vrad[mask],
+        xyz_kpc=pos[:, mask], vxyz_kms=vel[:, mask],
+    )
