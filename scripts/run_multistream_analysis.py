@@ -74,9 +74,18 @@ def main() -> int:
         t0 = time.time()
         scfg = streams_cfg.get(name, {})
         age = float(scfg.get("disruption_age_gyr", scfg.get("isochrone_age_gyr", 5.0)))
-        # Prefer the multi-epoch file (real RVs) if it exists.
+        # Catalog priority: a CLEAN external membership catalog (STREAMFINDER)
+        # first -- the bundled streams.h5 GD-1 is ~96% field contamination that
+        # washes out the real gap and manufactures a false null. Then multi-epoch
+        # (real RVs), then the default bundle.
+        sf = Path("data/processed") / f"{name}_streamfinder.h5"
         me = Path("data/processed") / f"{name}_multiepoch.h5"
-        h5 = str(me) if me.exists() else args.h5
+        if sf.exists():
+            h5 = str(sf)
+        elif me.exists():
+            h5 = str(me)
+        else:
+            h5 = args.h5
         try:
             cfg = ForwardModelConfig(
                 stream_name=name, config_path=args.config, processed_h5_path=h5,
