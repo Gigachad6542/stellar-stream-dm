@@ -36,9 +36,11 @@ specialist reader may skip the former without loss of rigor.*
 > made by massive, recent impacts; but figuring out the exact mass and age of a
 > single dark clump from one gap is fundamentally ambiguous, and telling apart
 > *kinds* of dark matter requires not one detection but a whole population of them
-> (roughly 5–30 clean detections for the most favorable models). Applied to the
-> seven real streams we have today, we find **no convincing detection** — a result
-> fully consistent with standard cold dark matter, reported as an upper limit.
+> (roughly 5–30 clean detections for the most favorable models). On the real GD-1
+> stream the system recognizes the known gap; pinning that gap on a specific dark
+> clump, and pooling many streams into a population test, needs one more piece of
+> machinery rebuilt on the corrected simulator — so we describe those steps here
+> rather than report numbers from the old, flawed stream-maker.
 
 ## Abstract
 
@@ -65,13 +67,14 @@ embedding carries almost no information about impact parameter (R²≈0.02) or e
 (R²≈0.04). Distinguishing DM models is consequently a **population** measurement; we
 quantify it as ≈5 detections for FDM (10⁻²² eV), ≈12–27 for WDM (3–6 keV), and
 effectively unreachable for SIDM via the mass spectrum (its subhalo abundance
-matches CDM). The timeline forward model recovers injected impacts exactly
-(rank 0/36) and, on real GD-1, cleanly detects the known gap (φ₁≈50°) but only
-marginally prefers a single-subhalo explanation. Across seven streams the joint
-significance is null (Stouffer Z=1.40, p=0.08; Fisher p=0.28; incoherent),
-a CDM-consistent upper limit. Naive per-stream significances up to 19σ collapse to
-≈±2σ under the look-elsewhere correction — a cautionary methods result we make
-explicit.
+matches CDM). On the real STREAMFINDER GD-1 catalog the validated detector and a
+model-free gap finder jointly identify the known φ₁≈50° gap. We further describe a
+*timeline forward model* (rewind, re-impact, re-evolve, score) and a
+look-elsewhere-corrected, coherence-gated multi-stream significance framework that
+complete the pipeline; these currently operate on a legacy impulse generator rather
+than the validated distribution functions, so we present their design and defer
+their quantitative application until they are migrated to the validated simulator.
+All numerical results reported here derive from the corrected simulator.
 
 ---
 
@@ -307,51 +310,69 @@ handful for favorable models, hopeless for SIDM via the mass spectrum.
 > favorable theories that's about five clean detections; for others, hundreds; for
 > one (SIDM) the mass count alone can never do it.
 
-## 8. The timeline forward model and real-data application
+## 8. The timeline forward model (design)
 
-For a detected gap we (1) estimate the impact epoch, (2) rewind the stream to its
-unperturbed state, (3) re-inject a grid of encounters (mass × epoch × φ₁) with the
-\citet{ErkalBelokurov2015} Plummer impulse and the corrected scale radius,
-(4) re-evolve to the present, and (5) score each hypothesis against the data.
+To move beyond detection toward physical characterization, we designed a *timeline
+forward model* that, for a detected gap, (1) estimates the impact epoch, (2) rewinds
+the stream to its unperturbed state, (3) re-injects a grid of encounters
+(mass × epoch × φ₁) with the \citet{ErkalBelokurov2015} Plummer impulse and the
+corrected scale radius, (4) re-evolves to the present, and (5) scores each hypothesis
+against the data. It thereby recasts detection as a constrained, physically explicit
+fit whose free parameters are the impact's mass, epoch, and location, and it is the
+natural route around the single-gap degeneracy of §6 (a forward model can exploit the
+joint density-and-kinematic morphology that a discriminative embedding discards).
 
-**Injection–recovery.** Injecting a known impact (10⁹ M⊙, 1.5 Gyr, φ₁=20°) and
-running the recovery grid returns the truth as the top-ranked candidate (rank 0/36;
-ΔlogM=Δt=Δφ₁=0), beating the no-impact null by 90% — the rewind→re-impact→re-evolve
-loop is self-consistent with corrected physics.
+**Scope caveat (important).** The forward model currently runs on the *legacy*
+impulse generator (`generate_stream` with the Erkal kick) — i.e. the hand-rolled
+particle spray of §3.2 with the scale-radius bug corrected, but **not** the validated
+`streamdf`/`streamgapdf` distribution functions used everywhere else in this paper.
+Its baseline/null streams therefore inherit the residual clumpiness that motivated
+the generator replacement. We accordingly **report no quantitative forward-model
+results here**: migrating the rewind/re-impact/re-evolve loop onto the validated
+generator is required before its injection-recovery, parameter estimates, and
+goodness-of-fit can be trusted, and we flag this as the principal remaining
+engineering step (§10). The machinery itself (grid search, scoring, null
+construction) is implemented and unit-tested; only its simulator backend is pending.
 
-**Real GD-1.** The forward model cleanly detects the gap (φ₁≈50°, model-free
-significance 37; GNN p_impact 0.99, in-distribution at 2.7σ) but only **marginally**
-prefers a single-subhalo explanation (best fit improves 3.2% over the smooth null,
-with the mass pinned at the low edge). With corrected, *softer* subhalos producing
-shallower gaps, a single realistic subhalo struggles to reproduce GD-1's observed
-gap depth — an honest, physically-grounded statement of the ambiguity.
+**What is valid on real GD-1 today.** Independently of the forward model, the
+validated detector and a purely model-free gap finder (which uses only the observed
+star density) jointly identify the known φ₁≈50° gap on the clean STREAMFINDER catalog
+(§4.3), with the detector's inputs in-distribution. Attributing that gap to a
+specific subhalo — its mass, epoch, and geometry — is precisely the task that awaits
+the migrated forward model.
 
-> **In plain terms.** We can "replay" a stream: rewind it, drop in a simulated
-> clump, fast-forward, and see if the result matches reality. This perfectly
-> recovers impacts we plant ourselves. On the real GD-1 gap it confirms *a* gap is
-> there but can't pin it on one specific clump — the data just don't single one out.
+> **In plain terms.** The next step beyond "is there a gap?" is "what made it?" We
+> built a tool that rewinds a stream, drops in a simulated clump, fast-forwards, and
+> checks the match. But that tool still uses the old, flawed stream-maker, so we are
+> *not* reporting numbers from it yet — we describe what it does and what it will
+> measure once it is rebuilt on the corrected simulator.
 
-## 9. Population significance across streams
+## 9. Population significance: framework (application deferred)
 
-We combine seven streams (GD-1 on the clean STREAMFINDER catalog; the rest on the
-best available data) with Stouffer's Z and Fisher's method, **gated by a coherence
-requirement** and corrected for the grid search by a *best-of-grid look-elsewhere
-null*. The correction is decisive (Figure 6): naive single-cell significances as
-large as 19σ (Sylgr) and 12σ (Pal 5) collapse to ≈±2σ once the search is accounted
-for. The per-stream evidence is incoherent (71% positive, mixed sign), and the joint
-result is null — **Stouffer Z=1.40 (p=0.08), Fisher χ²=16.6 (p=0.28)** — best read
-as a **CDM-consistent upper limit** given current data. The naive-to-corrected
-collapse is itself a cautionary methods result: unaccounted-for trials manufacture
-many-sigma "signals" from noise.
+A single stream rarely yields a decisive detection, so the pipeline includes a
+multi-stream combination designed to test for a *population* of impacts. Per stream,
+the best-scoring impact hypothesis is compared against a null distribution from
+no-impact realizations; the grid search is de-biased with a **best-of-grid
+look-elsewhere null** (each null realization is scored over the entire grid and its
+maximum retained, so the null undergoes the same search as the data); and per-stream
+evidence is combined with Stouffer's Z and Fisher's method **gated by a coherence
+requirement** (a genuine population signal should be consistent in sign and magnitude
+across streams). A general, simulator-independent methodological point already
+follows from the construction: because the search ranges over mass, epoch, and
+location, naive single-cell significances are strongly inflated and must be
+look-elsewhere-corrected — uncorrected, ordinary noise routinely reaches many sigma.
 
-![Figure 6](figures/fig6_multistream.png)
-**Figure 6.** No coherent detection. Naive per-stream significance (grey) collapses
-under the look-elsewhere correction (blue); the joint significance is null.
+Because this combination is built on the §8 forward model, which still uses the
+legacy generator, **we defer the quantitative multi-stream significance** (per-stream
+and joint) to a future analysis on the migrated generator, rather than report numbers
+that would inherit the legacy simulator's systematics.
 
-> **In plain terms.** Looking across seven streams, we find no convincing sign of
-> dark-matter impacts — consistent with the standard theory. We also show a trap:
-> if you don't account for how many places you looked, pure noise can masquerade as
-> a huge discovery. Correcting for it makes those false signals vanish.
+> **In plain terms.** A single stream rarely settles the question, so we built a way
+> to pool many streams and to guard against a statistical trap — if you don't account
+> for how many places you looked, pure noise can masquerade as a discovery. We are
+> not reporting pooled numbers yet, because that step relies on the same old
+> stream-maker that still needs rebuilding; we describe how it works and what it will
+> measure.
 
 ## 10. Limitations and systematics
 
@@ -366,7 +387,13 @@ under the look-elsewhere correction (blue); the joint significance is null.
    multiple classification is deferred (gap *counting* is available model-free).
 4. **Real-data volume**: DM-model discrimination needs many clean detections (§7);
    today's clean catalogs are few.
-5. **Forward-model resolution** and the single-encounter, impulse approximation.
+5. **Forward model on the legacy generator** (§8): the timeline forward model and the
+   multi-stream significance framework still use the hand-rolled impulse generator
+   (corrected scale radius, but not the validated `streamdf`/`streamgapdf` of §3).
+   Their quantitative outputs are therefore *not* reported in this paper; migrating
+   the rewind/re-impact/re-evolve loop onto the validated generator is the principal
+   remaining engineering step before any forward-model or population result can be
+   trusted. The single-encounter and impulse approximations also apply.
 
 ## 11. Conclusions
 
@@ -378,13 +405,16 @@ it (with validated distribution functions and a pre-flight validation harness)
 raised the *same* detector to AUC 0.982 and made the real GD-1 catalog
 in-distribution. With a faithful simulator we (i) mapped detection completeness
 across impact type, (ii) showed single-gap characterization is degeneracy-limited,
-(iii) reframed DM-model discrimination as a population measurement and quantified
-its sample-size cost, and (iv) validated a timeline forward model that recovers
-injected impacts exactly. Applied to current data, the pipeline finds no coherent
-multi-stream detection — a CDM-consistent upper limit — and demonstrates how
-look-elsewhere effects inflate naive significance by an order of magnitude. The path
-to a measurement is now clear and concrete: kinematic (not just density) features,
-more clean membership catalogs, and the population sample sizes of §7.
+and (iii) reframed DM-model discrimination as a population measurement and quantified
+its sample-size cost. On the real STREAMFINDER GD-1 catalog the validated detector
+and a model-free gap finder jointly recover the known φ₁≈50° gap with in-distribution
+inputs. We additionally describe — but, for integrity, do not yet quantify — a
+timeline forward model and a look-elsewhere-corrected, coherence-gated multi-stream
+significance framework: both currently run on the legacy impulse generator, and
+migrating them onto the validated distribution functions is the principal remaining
+step before their results can be reported. The path to a physical measurement is
+concrete: that migration, kinematic (not just density) detector features, and the
+clean-detection sample sizes of §7.
 
 ## Methods *(technical appendix)*
 

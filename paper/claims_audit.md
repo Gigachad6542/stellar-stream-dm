@@ -60,14 +60,26 @@ Legend: ✓ verified against artifact · 📖 literature · ⏳ pending (retrain
 | N_det FDM 10⁻²¹ | ≈135 | same | ✓ |
 | SIDM via mass | ≈214k (hopeless) | same | ✓ |
 
-## Forward model / population significance
-| Claim | Value | Source | Status |
-|---|---|---|---|
-| Injection-recovery | rank 0/36, +90% over null | `run_injection_recovery.py` (90.4%) | ✓ |
-| Real GD-1 single-subhalo fit | +3.2% over null | `run_timeline_forward_model.py` | ✓ |
-| Multistream joint | Stouffer Z=1.40 (p=0.08), Fisher p=0.28 | `outputs/multistream/joint_significance_corrected.json` (1.396 / 0.277) | ✓ |
-| Incoherent, frac positive | 71% | same (0.714) | ✓ |
-| Naive z (collapse) | Sylgr 18.9, Pal5 11.8 → ≈±2 | same (per-stream z & le_z) | ✓ |
+## Forward model / population significance — DEFERRED, NOT REPORTED
+These components run on the **legacy** homemade generator (`generate_stream` +
+Erkal kick; scale-radius corrected but NOT the validated `streamdf`/`streamgapdf`).
+Per the integrity rule "only report results from components that used the new
+simulator," their numbers are **described but not stated** in §8–§9 of the
+manuscript; they are listed here only to document why. (Numbers exist in
+`outputs/multistream/joint_significance_corrected.json` etc. but are intentionally
+withheld pending the forward-model migration to the validated generator.)
+| Component | Status in paper | Reason |
+|---|---|---|
+| Timeline forward model (injection-recovery, real-GD-1 fit) | design described, no numbers | legacy generator |
+| Multi-stream joint significance | framework described, no numbers | built on the legacy forward model |
+| Fig 6 (multistream) | removed from manuscript | presented legacy-generator results |
+| Look-elsewhere inflation point | kept (qualitative, simulator-independent) | a general statistical fact |
+
+## Real-GD-1 statements that REMAIN valid (no legacy generator involved)
+| Claim | Source | Status |
+|---|---|---|
+| Model-free gap at φ₁≈50° | real STREAMFINDER density only | ✓ |
+| GNN p_impact, OOD in-distribution | new-sim detector on real data | ✓ |
 
 ## Literature claims (cited)
 | Claim | Reference | Status |
