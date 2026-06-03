@@ -1,171 +1,102 @@
-# Stellar Stream Dark Matter Subhalo Detection
+# Stellar-stream dark-matter subhalo-impact detection
 
-End-to-end pipeline using graph neural networks + simulation-based inference (SBI)
-to detect dark matter subhalo perturbations in Milky Way stellar streams (Gaia DR3).
+A reproducible pipeline that detects and interprets the density gaps left by
+dark-matter subhalo flybys in thin Milky Way stellar streams (Gaia DR3), using a
+validated stream simulator, a graph-neural-network (GNN) detector, and a
+characterization/forward-model layer.
 
-## Project structure
+**The paper** (current state, with figures) lives in [`paper/`](paper/):
+read [`paper/manuscript.md`](paper/manuscript.md) or the rendered
+[`paper/manuscript.pdf`](paper/manuscript.pdf).
 
-```
-stellar-stream-dm/
-├── config/                    # All configuration (streams, DM models, training)
-│   ├── streams.yaml           #   Stream-specific parameters (phi1 ranges, distances, etc.)
-│   ├── dm_models.yaml         #   Mass functions and inference priors per DM model
-│   └── training.yaml          #   Hyperparameters, simulation budget, paths
-├── src/                       # Source code (6 subpackages)
-│   ├── data/                  #   Gaia queries, stream processing, multi-epoch fusion, PyG datasets
-│   ├── simulation/            #   MW potential, stream generation, subhalo/baryonic perturbations
-│   ├── models/                #   GNN encoder (GINEConv), baseline CNN, transformer
-│   ├── inference/             #   SBI pipeline (SNPE-C), posteriors, calibration
-│   ├── forward_model/         #   Timeline: detection→handoff, rewind/re-impact, significance, multistream
-│   └── analysis/              #   Gap catalog, model comparison, visualization
-├── scripts/                   # Runnable entry points — see scripts/README.md for the full index
-│   ├── generate_training_data.py  # Parallel simulation generation
-│   ├── train_v2.py            #   Train the v2 GNN detector
-│   ├── calibrate_detector.py  #   Temperature-calibrate the detector
-│   ├── run_timeline_forward_model.py  # Timeline rewind/re-impact/score pipeline
-│   ├── run_injection_recovery.py      # Injection-recovery test
-│   └── run_multistream_analysis.py    # Multi-stream joint significance
-├── tests/                     # Unit tests (~289 tests across 13 files, pytest)
-│   ├── test_simulation.py     #   Potential, mass functions, impulse, noise
-│   ├── test_model.py          #   GNN, CNN, transformer, checkpoints
-│   ├── test_inference.py      #   Priors, posteriors, gaps, Bayes factors
-│   ├── test_forward_model.py / test_detection.py / test_significance.py  # Timeline
-│   ├── test_erkal_kick.py / test_multistream.py / test_multi_epoch.py / test_gd1_frames.py
-│   └── conftest.py            #   Pytest fixtures and --run-slow flag
-├── notebooks/                 # Jupyter notebooks (exploration + results)
-│   ├── 01_explore_streams.ipynb
-│   ├── 02_simulation_validation.ipynb
-│   ├── 03_training_diagnostics.ipynb
-│   ├── 04_real_data_inference.ipynb
-│   └── 05_results_summary.ipynb
-├── data/                      # Data files (gitignored — generate locally)
-│   ├── raw/                   #   Gaia FITS downloads
-│   ├── processed/             #   Standardized HDF5 (streams.h5, *_clean.h5)
-│   └── simulations_v3_track6d/  # Training simulations (regenerated with track6d IC)
-├── checkpoints/               # Trained model weights (gitignored)
-├── outputs/                   # Analysis outputs: CSV, PDF figures (gitignored)
-├── logs/                      # Build logs, batch scripts, stale data (gitignored)
-├── environment.yml            # Conda environment specification
-├── .gitignore
-└── README.md
-```
+## What it does, and what it finds
 
-## Science goal
+- **Simulator** — smooth streams from `streamdf` and single-gap streams from
+  `streamgapdf` (Bovy 2014; Sanders, Bovy & Erkal 2016), gated by a pre-flight
+  validation harness so only faithful batches are used for training.
+- **Detector** — a GINEConv GNN reaches **test AUC 0.982** with a zero
+  false-positive operating point, and is **in-distribution** on the real
+  STREAMFINDER GD-1 catalog, where it recovers the known φ₁≈50° gap.
+- **Completeness** — detectability rises with subhalo mass and falls with impact
+  age (gaps phase-mix away); the detector is, in effect, a calibrated density-gap
+  detector.
+- **Characterization** — a single gap is **degeneracy-limited**: subhalo mass is
+  essentially unrecoverable from one gap (R²<0); only recency is weakly constrained
+  (R²≈0.2).
+- **Dark-matter models** — distinguishing CDM/WDM/FDM/SIDM is a *population*
+  measurement; we quantify the required number of clean detections (≈5 for
+  FDM 10⁻²² eV, ≈12–27 for WDM 3–6 keV, unreachable for SIDM via the mass spectrum).
+- **Timeline forward model + multi-stream significance** — implemented and
+  described, but currently on a separate (legacy) generator; their quantitative
+  results are deferred until that generator is ported to the validated DFs.
 
-Constrain the dark matter subhalo mass function and discriminate between:
-- CDM (cold dark matter)
-- WDM (warm dark matter, thermal relic)
-- FDM (fuzzy/ultra-light axion dark matter)
-- SIDM (self-interacting dark matter)
-
-across 7 target stellar streams using combined multi-stream posterior inference.
+All reported numbers derive from the validated `streamdf`/`streamgapdf` simulator.
 
 ## Target streams
+GD-1, ATLAS, Jhelum, Orphan are supported by the action-angle stream model used for
+training. (Pal 5 and Fjörm have near-circular orbits that break the isochrone
+action-angle approximation and are excluded by an allow-list.)
 
-GD-1, Pal 5, Orphan-Chenab, ATLAS, Jhelum, Fjorm, Sylgr
+## Repository layout
+```
+src/            simulation/ (potential, streamdf/streamgapdf generation, subhalo physics),
+                models/ (GINEConv GNN), data/ (Gaia/catalog processing, PyG datasets),
+                forward_model/ (timeline detect→rewind→re-impact→score), analysis/
+scripts/        runnable entry points (see scripts/README.md)
+paper/          manuscript (.md + .tex), figures, references, claims audit, PDF builder
+config/         streams.yaml, dm_models.yaml, training.yaml
+tests/          pytest unit tests
+changelog/      dated decision log
+data/, checkpoints/, outputs/   gitignored — regenerate locally
+```
 
 ## Setup
-
-### 1. Install Miniforge3
-
-Download from https://github.com/conda-forge/miniforge/releases (Windows installer).
-
-### 2. Create environment
-
 ```bash
 mamba env create -f environment.yml
 conda activate stellar-stream-dm
-```
-
-### 3. Install galstreams (manual step — required)
-
-`galstreams` declares `gala` as a dependency; `gala` has no Windows binary wheels
-and its C extensions fail with MSVC.  Since all runtime needs of galstreams
-(astropy, numpy, scipy) are already in the env, install it without dependencies:
-
-```bash
+# galstreams declares gala (no Windows wheels); install without deps:
 pip install git+https://github.com/cmateu/galstreams.git@main --no-deps
+python -c "import torch, galstreams, torch_geometric; print('imports OK', torch.cuda.is_available())"
 ```
+> The simulation backend is **galpy** (conda-forge binary), not gala. On Windows,
+> PyTorch is installed from `download.pytorch.org/whl/cu124`.
 
-### 4. Verify GPU
-
+## Current pipeline (entry points)
 ```bash
-python -c "import torch; assert torch.cuda.is_available(), 'No CUDA!'; print(torch.version.cuda)"
-python -c "import jax; print(jax.devices())"
-python -c "import galstreams, sbi, torch_geometric; print('All imports OK')"
+# 1. Generate the detector dataset (validated DFs; parallel, resumable)
+python scripts/generate_detector_data.py --n-sims 16000 --noise gaia \
+    --output-dir data/simulations_detector_df
+
+# 2. Validate a batch BEFORE training (critical gates: smoothness, length, separability)
+python scripts/validate_generator.py --sim-dir data/simulations_detector_df
+
+# 3. Train the detect+characterize GNN
+python scripts/train_v2.py --sim-dir data/simulations_detector_df \
+    --binary-target impact_strong --strength-threshold 0.5 --use-profile-branch
+
+# 4. Calibrate + evaluate
+python scripts/calibrate_detector.py  --checkpoint <ckpt> --sim-dir data/simulations_detector_df
+python scripts/detector_completeness.py --checkpoint <ckpt> --sim-dir data/simulations_detector_df
+
+# 5. Analyses
+python scripts/characterize_probe.py --checkpoint <ckpt> --sim-dir data/simulations_detector_df
+python scripts/dm_family_distinguishability.py
+
+# Forward-model / multistream (legacy generator — see paper §8–§9)
+python scripts/run_injection_recovery.py --stream GD1 --fast
+python scripts/run_timeline_forward_model.py --stream GD1 --auto-detect --detector-checkpoint <ckpt>
 ```
-
-> **Note (Windows):** PyTorch is installed via pip from `download.pytorch.org/whl/cu124`
-> (not the conda pytorch channel, which ships a CPU-only binary on Windows despite the
-> CUDA build string).  The simulation backend uses **galpy** (not gala) for MW potentials
-> and stream generation — galpy installs from conda-forge as a pre-built binary.
-
-## Implementation sequence
-
-1. **Data** — Query Gaia DR3 for each stream, process to HDF5; fuse real multi-epoch RVs/PMs (`fetch_multi_epoch.py`)
-2. **Simulations** — Generate training simulations with the track6d-IC generator (benchmark first)
-3. **Baseline** — Train 1D CNN on density profiles (must reach >70% accuracy)
-4. **GNN** — Train GINEConv encoder on phase-space graphs (must reach >80%)
-5. **SBI** — Wire GNN embeddings to SNPE-C; run SBC calibration tests
-6. **Inference** — Apply to real streams; combine posteriors
-7. **Timeline forward model** — Detect a probable impact, estimate its time, rewind the
-   stream, re-impact on a grid, re-evolve to present, and score against the real stream;
-   assess significance vs null and combine across streams (`run_timeline_forward_model.py`,
-   `run_multistream_analysis.py`)
-
-## Quickstart (exploration)
-
-```bash
-# Check stream data
-jupyter lab notebooks/01_explore_streams.ipynb
-
-# Benchmark simulations (estimate runtime)
-python scripts/generate_training_data.py --benchmark 160
-
-# Full simulation run (BLAS threads auto-pinned; n_jobs defaults to physical cores)
-python scripts/generate_training_data.py --n-sims 25000
-
-# Train GNN
-python scripts/train.py --model gnn --epochs 200
-
-# Run inference on GD-1
-python scripts/run_inference.py --stream GD1 --all-models
-
-# Combine posteriors
-python scripts/combine_posteriors.py
-```
-
-### Timeline forward model
-
-```bash
-# Detect → estimate time → rewind → re-impact grid → re-evolve → score vs real
-python scripts/run_timeline_forward_model.py --stream GD1
-
-# Injection-recovery validation
-python scripts/run_injection_recovery.py --stream GD1
-
-# Joint significance across all target streams
-python scripts/run_multistream_analysis.py
-```
-
-See `scripts/README.md` for the complete, categorized list of entry points.
+See [`scripts/README.md`](scripts/README.md) for the full categorized index.
 
 ## Tests
-
 ```bash
-pytest tests/ -v -m "not slow"   # fast tests
-pytest tests/ -v                  # including slow (requires gala)
+pytest tests/ -v -m "not slow"
 ```
 
 ## Key design decisions
-
-- **GINEConv** (not GCN or GAT): edge features carry the kinematic perturbation signal
-- **joblib loky backend**: avoids Windows fork() issues with gala/astropy imports
-- **Two-level inference**: per-stream NPE → product-of-posteriors for DM model params
-- **Stream-agnostic**: all stream parameters in `config/streams.yaml`; no stream names in Python
-
-## Novel contribution
-
-Multi-stream combined posterior inference + baryonic vs. dark-matter gap classifier.
-The gap classifier assigns P(DM subhalo) / P(GMC) / P(noise) to each observed gap —
-this analysis does not yet exist in the published literature as a systematic ML pipeline.
+- **Validated distribution functions** (`streamdf`/`streamgapdf`) with a shared smooth
+  track, so the only difference between training classes is the gap itself.
+- **GINEConv** GNN: edge features carry the local kinematic perturbation signal.
+- **Pre-flight validation harness** gates every generated batch before training.
+- **Clean-catalog operating regime**: trained on Gaia-noise (not foreground-heavy)
+  streams; applied to clean external membership catalogs (e.g. STREAMFINDER GD-1).
