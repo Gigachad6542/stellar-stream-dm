@@ -13,7 +13,7 @@ NOT stated** in §8–§9. *Principal remaining engineering step: migrate the fo
 model's rewind/re-impact/re-evolve loop onto the validated generator, then report.*
 
 ## Status: manuscript rebuilt around the CURRENT pipeline
-The June-2026 corrected-simulator results are now the paper. The old v3 narrative
+The paper reports CURRENT-STATE results only — no development history / before-after.
 ("detection is intrinsically weak, AUC 0.62") was an artifact of the scale-radius
 bug and has been removed.
 
@@ -33,7 +33,7 @@ bug and has been removed.
 - [x] Full rewrite to current state, dual-register (plain-language boxes + Methods)
 - [x] Abstract (plain-language summary + technical abstract)
 - [x] All sections §1–§11 + Methods + Reproducibility
-- [ ] Drop the one preliminary number in §6 once the mass_time eval completes
+- [x] §6 finalized with dedicated-head result (mass R²<0, time R²≈0.2)
 - [x] Tone pass (academic body) + citation audit (`claims_audit.md`); all cites resolve
 - [x] Regenerated `mnras_paper.tex` from manuscript.md (ASCII-clean, Overleaf-ready)
 

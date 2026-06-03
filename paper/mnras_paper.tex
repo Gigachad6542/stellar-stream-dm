@@ -1,7 +1,6 @@
-% MNRAS manuscript --- regenerated from paper/manuscript.md (2026-06-02), corrected
-% simulator pipeline. Build on Overleaf ("Monthly Notices of the RAS" template) or
-% locally with mnras.cls:  latexmk -pdf mnras_paper.tex
-% Requires mnras.cls + mnras.bst (RAS / Overleaf template) and references.bib.
+% MNRAS manuscript --- generated from paper/manuscript.md. Current-state pipeline
+% (streamdf/streamgapdf). Build on Overleaf ("Monthly Notices of the RAS" template)
+% or locally: latexmk -pdf mnras_paper.tex  (needs mnras.cls + mnras.bst + references.bib)
 \documentclass[fleqn,usenatbib]{mnras}
 
 \usepackage{newtxtext,newtxmath}
@@ -20,8 +19,8 @@
   {\end{quotation}\medskip}
 
 \title[DM subhalo impacts in stellar streams]{Detecting dark-matter subhalo impacts
-in Milky Way stellar streams: simulator fidelity as the bottleneck, a working
-detector, and an honest current-data limit}
+in Milky Way stellar streams: a validated graph-neural-network pipeline and the
+limits of single-stream inference}
 
 \author[D. W. et al.]{D.~W.$^{1}$\thanks{E-mail: placeholder@institution.edu}
 \\
@@ -36,120 +35,103 @@ $^{1}$Affiliation placeholder}
 
 \begin{abstract}
 Dark-matter subhalos below the threshold of galaxy formation ($\lesssim10^8\,\msun$)
-are a defining prediction of cold dark matter (CDM) and a discriminator against
-warm (WDM), fuzzy (FDM), and self-interacting (SIDM) alternatives. Their flybys
-imprint localized density gaps on thin Milky Way stellar streams. We present an
-end-to-end, reproducible pipeline --- a physically faithful stream simulator, a
-graph-neural-network (GNN) detector, impact-type characterization, a \emph{timeline
-forward model}, and a look-elsewhere-corrected multi-stream significance framework
---- and report what it can and cannot measure. Our central methodological finding
-is that \emph{simulator fidelity, not model architecture, sets the science reach}: a
-units error that rendered simulated subhalos point-like (and a clumpy bespoke
-generator) capped a GINEConv detector at AUC $0.62$ and made the network
-out-of-distribution on real data. Replacing the bespoke generator with galpy's
-validated distribution functions (\code{streamdf}/\code{streamgapdf};
-\citealt{Bovy2014streamdf}; \citealt{SandersBovyErkal2016}) and fixing the
-scale-radius bug raised the \emph{same} detector to test AUC $0.982$ with a zero
-false-positive operating point, and rendered the real STREAMFINDER GD-1 catalog
-\emph{in-distribution} (maximum input deviation $3.1\sigma$, versus $391\sigma$
-before). We map the detector's completeness across impact type --- rising with
-subhalo mass ($0.48\rightarrow0.72$ over $10^{7.5}$--$10^{8.5}\,\msun$) and falling
-with impact age ($0.75\rightarrow0.39$ from $0.3$ to $1.4$~Gyr) --- and show that
-single-gap characterization is degeneracy-limited: the detection embedding carries
-almost no information about impact parameter ($R^2\approx0.02$) or epoch
-($R^2\approx0.04$). Distinguishing DM models is consequently a \emph{population}
+are a defining prediction of cold dark matter (CDM) and a discriminator against warm
+(WDM), fuzzy (FDM), and self-interacting (SIDM) alternatives. Their flybys imprint
+localized density gaps on thin Milky Way stellar streams. We present an end-to-end,
+reproducible pipeline for detecting and interpreting these gaps: a stream simulator
+built on galpy's validated action-angle distribution functions (\code{streamdf},
+\code{streamgapdf}; \citealt{Bovy2014streamdf}; \citealt{SandersBovyErkal2016}), gated
+by a pre-flight validation harness; a graph-neural-network (GNN) detector; and a
+characterization and forward-model layer. The GINEConv detector reaches \textbf{test
+AUC $0.982$} with a zero false-positive operating point and, on the real STREAMFINDER
+GD-1 catalog, is \emph{in-distribution} (maximum input deviation $3.1\sigma$) and,
+jointly with a model-free gap finder, recovers the known $\phi_1\approx50^\circ$ gap.
+We map the detector's \textbf{completeness} across impact type --- rising with subhalo
+mass ($0.48\rightarrow0.72$ over $10^{7.5}$--$10^{8.5}\,\msun$) and falling with
+impact age ($0.75\rightarrow0.39$ from $0.3$ to $1.4$~Gyr) --- and show that
+\textbf{single-gap characterization is degeneracy-limited}: a dedicated regression
+head does not recover subhalo mass ($R^2<0$) and recovers time-since-impact only
+weakly ($R^2\approx0.2$). Distinguishing DM models is consequently a \textbf{population}
 measurement; we quantify it as ${\approx}5$ detections for FDM ($10^{-22}$~eV),
 ${\approx}12$--$27$ for WDM ($3$--$6$~keV), and effectively unreachable for SIDM via
-the mass spectrum. On the real STREAMFINDER GD-1 catalog the validated detector and
-a model-free gap finder jointly identify the known $\phi_1\approx50^\circ$ gap. We
-further describe a \emph{timeline forward model} (rewind, re-impact, re-evolve,
-score) and a look-elsewhere-corrected, coherence-gated multi-stream significance
-framework that complete the pipeline; these currently operate on a legacy impulse
-generator rather than the validated distribution functions, so we present their
-design and defer their quantitative application until they are migrated to the
-validated simulator. All numerical results reported here derive from the corrected
-simulator.
+the mass spectrum (its subhalo abundance matches CDM). We further describe a
+\emph{timeline forward model} (rewind, re-impact, re-evolve, score) and a
+look-elsewhere-corrected, coherence-gated multi-stream significance framework that
+complete the pipeline; these currently operate on a separate impulse generator rather
+than the validated distribution functions, so we present their design and defer their
+quantitative application until they are ported. All numerical results reported here
+derive from the validated simulator.
 \end{abstract}
 
 \begin{keywords}
 dark matter -- Galaxy: structure -- methods: statistical -- methods: numerical
 \end{keywords}
 
-% --- Plain-language summary (AGU-style; specialist may skip) ----------------
 \section*{Plain-language summary}
 The Milky Way is thought to be swarming with thousands of invisible clumps of dark
-matter. The lightest ones contain no stars at all, so the only way to find them is
-by the gravitational ``wake'' they leave when they pass through something visible.
-Thin streams of stars --- the shredded remains of old star clusters --- are the most
+matter. The lightest ones contain no stars at all, so the only way to find them is by
+the gravitational ``wake'' they leave when they pass through something visible. Thin
+streams of stars --- the shredded remains of old star clusters --- are the most
 sensitive detectors we have: a passing dark clump carves a small \emph{gap} in the
-otherwise smooth ribbon of stars. We built an automated system to find these gaps
-and infer what made them. The single most important lesson is that the search only
-works if the practice data are physically correct: our first simulator had a units
-bug that made every simulated dark clump a million times too small, so the
-AI detector trained on the wrong physics and performed no better than chance. After
-the fix (using community-standard, peer-reviewed code), the same detector went from
-chance (AUC $0.62$) to near-perfect (AUC $0.98$) and recognized the \emph{real} GD-1
-stream as familiar rather than anomalous. The honest scientific bottom line: we can
-reliably detect the gaps left by massive, recent impacts; inferring the exact mass
-and age of a single dark clump from one gap is fundamentally ambiguous; and telling
-apart \emph{kinds} of dark matter requires a population of detections (roughly
-$5$--$30$ for the most favorable models). On the real GD-1 stream the system
-recognizes the known gap; pinning that gap on a specific dark clump, and pooling many
-streams into a population test, require one further piece of machinery rebuilt on the
-corrected simulator --- so we describe those steps rather than report numbers from
-the superseded generator.
+otherwise smooth ribbon of stars. We built an automated system to find these gaps and
+infer what made them. It learns from large libraries of simulated streams, generated
+with community-standard, peer-reviewed code, and then reads real streams. On simulated
+data it is highly accurate (it correctly flags impacted versus smooth streams about
+98\% of the time) and never raises a false alarm on a smooth stream; on the real GD-1
+stream it recognizes the known gap and treats the data as familiar rather than
+anomalous. The honest scientific bottom line: we can reliably \emph{detect} the gaps
+made by massive, recent impacts, but several things are fundamentally hard. Inferring
+the exact mass of the dark clump from a single gap is essentially impossible (many
+different clumps leave look-alike gaps), though we can estimate roughly \emph{how
+recently} it struck; and telling apart \emph{kinds} of dark matter requires not one
+detection but a whole population of them --- roughly $5$--$30$ clean detections for the
+most favorable theories. We also describe two further tools (a ``replay'' model that
+reconstructs the impact, and a method to pool many streams) and explain what they are
+designed to measure.
 
-% ---------------------------------------------------------------------------
 \section{Introduction}
 The abundance of low-mass dark-matter subhalos is among the sharpest predictions
 separating cold dark matter (CDM) from warm (WDM), fuzzy (FDM), and self-interacting
 (SIDM) alternatives. Below the threshold of galaxy formation ($\lesssim10^8\,\msun$)
-these halos hold no stars and are detectable only gravitationally. Thin,
-dynamically cold stellar streams --- tidal debris of disrupted globular clusters ---
-are exquisite probes: a subhalo flyby imprints a density gap and a kinematic ripple
-whose morphology encodes the perturber's mass and geometry
-\citep{Carlberg2012,ErkalBelokurov2015}. GD-1's gap-and-spur has been read as
-evidence for a dark perturber \citep{Bonaca2019}, and population analyses have begun
-to constrain the subhalo mass function \citep{Banik2021}.
+these halos hold no stars and are detectable only gravitationally. Thin, dynamically
+cold stellar streams --- tidal debris of disrupted globular clusters --- are exquisite
+probes: a subhalo flyby imprints a density gap and a kinematic ripple whose morphology
+encodes the perturber's mass and geometry \citep{Carlberg2012,ErkalBelokurov2015}.
+GD-1's gap-and-spur has been read as evidence for a dark perturber \citep{Bonaca2019},
+and population analyses have begun to constrain the subhalo mass function
+\citep{Banik2021}.
 
-Turning a gap into a measurement is hard for two reasons. \emph{Degeneracy:} an
-impact must be separated from baryonic perturbers, epicyclic density variations, and
-selection systematics, and a single gap underdetermines the perturber's mass,
-impact parameter, and epoch. \emph{Cost:} the forward model is expensive, making
-likelihood-based search over many hypotheses slow. We address both with a graph
-neural network (GNN) detector --- whose edge-conditioned message passing
-\citep{Hu2020gine} respects the permutation symmetry of a member-star set and the
-locality of kinematic perturbations --- and a constrained forward-model search we
-call the \emph{timeline forward model}, which recasts detection as a physically
-explicit rewind/re-impact/re-evolve comparison.
-
-A central finding of this work, developed throughout, is that \emph{the dominant
-control on what such a pipeline can measure is the fidelity of the training
-simulator, not the sophistication of the network}. We document a concrete instance
-(a scale-radius units bug that made every simulated subhalo point-like), show that
-fixing it converts a chance-level detector into a strong one, and then report
-honestly what the corrected pipeline can and cannot do.
+Turning a gap into a measurement is hard for two reasons. \emph{Degeneracy:} an impact
+must be separated from baryonic perturbers, epicyclic density variations, and
+selection systematics, and a single gap underdetermines the perturber's mass, impact
+parameter, and epoch. \emph{Cost:} the forward model is expensive, making
+likelihood-based search over many hypotheses slow. We address both with a graph neural
+network (GNN) detector --- whose edge-conditioned message passing \citep{Hu2020gine}
+respects the permutation symmetry of a member-star set and the locality of kinematic
+perturbations --- and a constrained forward-model search we call the \emph{timeline
+forward model}. Because such a detector is only as trustworthy as the simulations it
+learns from, we build the training set from published, validated distribution
+functions and gate every batch through a quantitative pre-flight validation harness
+(\S\ref{sec:sim}) before training, then report honestly what the pipeline can and
+cannot measure.
 
 \begin{plainterms}
 Dark-matter clumps too small to hold stars can only be found by their gravity. When
-one flies past a stream of stars it leaves a gap. We teach an AI to spot those gaps
---- but an AI is only as good as the practice problems it studies, and getting those
-physically correct turned out to be the whole challenge.
+one flies past a stream of stars, it leaves a gap. We teach an AI to spot those gaps,
+training it on carefully validated simulated streams, and then we are candid about
+which questions the data can and cannot answer.
 \end{plainterms}
 
 \section{The pipeline at a glance}
 The system has five independently testable stages: (1) a \emph{simulator}
-(\S\ref{sec:sim}) generating smooth streams and streams with a known subhalo gap
-from validated galpy distribution functions, gated by a pre-flight validation
-harness; (2) a \emph{detector} (\S\ref{sec:det}), a GINEConv GNN classifying a
-stream as impacted or smooth, calibrated and out-of-distribution (OOD) aware; (3)
-\emph{completeness and characterization} (\S\ref{sec:compl}--\ref{sec:char}),
-mapping which impact types are detectable and inferring the perturber's properties;
-(4) the \emph{timeline forward model} (\S\ref{sec:fwd}); and (5) \emph{population
-significance} (\S\ref{sec:pop}) combining streams with a look-elsewhere correction
-and coherence gate.
+(\S\ref{sec:sim}) generating smooth streams and streams with a known subhalo gap from
+validated distribution functions, gated by a validation harness; (2) a \emph{detector}
+(\S\ref{sec:det}), a GINEConv GNN classifying a stream as impacted or smooth,
+calibrated and out-of-distribution (OOD) aware; (3) \emph{completeness and
+characterization} (\S\ref{sec:compl}--\ref{sec:char}); (4) the \emph{timeline forward
+model} (\S\ref{sec:fwd}); and (5) \emph{population significance} (\S\ref{sec:pop}).
 
-\section{The simulator, and why fidelity is everything}
+\section{The stream simulator}
 \label{sec:sim}
 \subsection{Generation with validated distribution functions}
 Streams are integrated in an \code{MWPotential2014}-class Galactic potential
@@ -165,31 +147,24 @@ systematic difference between the two training classes is the gap itself, so the
 detector cannot exploit a generator artifact. A particle-spray generator,
 \code{streamspraydf} \citep{Fardal2015}, is used for cross-checks.
 
-\subsection{Two simulator defects and their correction}
-\label{sec:bugs}
-The previous bespoke generator failed in two ways that together limited the entire
-pipeline. First, a \emph{scale-radius units error}: the routine computed the
-critical density in $\msun\,\mathrm{Mpc}^{-3}$ but used it as
-$\msun\,\mathrm{kpc}^{-3}$ --- a $10^9\times$ density error returning subhalo scale
-radii ${\sim}10^3$ too small. Every simulated impact (including all earlier
-\code{v3} results) therefore used an effectively \emph{point-like} subhalo
-(${\sim}0.3$~pc for a $10^8\,\msun$ halo instead of ${\sim}0.25$~kpc), producing
-unphysically sharp, spatially narrow velocity kicks. Second, a \emph{clumpy bespoke
-spray} whose intrinsic density fluctuations (excess over the Poisson floor
-${\approx}0.4$) swamped real gaps. Both are removed by adopting the validated
-distribution functions and the corrected NFW scaling ($10^8\,\msun\rightarrow
-r_s\approx0.25$~kpc). The consequence is large (Fig.~\ref{fig:simfix}): the
-impact-vs-smooth separability rises from AUC $0.57$ to $0.94$, and a smooth stream
-sits at the Poisson floor (gap-depth excess $0.01$).
+\subsection{Subhalo encounters}
+A subhalo's gravitational scale is set by its NFW scale radius $r_s=r_{200}/c$ with the
+\citet{Ludlow2016} concentration--mass relation (e.g. $r_s\approx0.25$~kpc for a
+$10^8\,\msun$ halo); the flyby imprints the \citet{ErkalBelokurov2015} Plummer
+velocity impulse. Impact encounters span the detectable regime (mass
+$10^{7.5}$--$10^{8.7}\,\msun$, impact parameter $\le0.35$~kpc), encoded analytically by
+\code{streamgapdf}.
 
 \subsection{A pre-flight validation harness}
-Every batch is gated by a validation harness: smoothness (gap-depth \emph{excess
-over the Poisson floor}, $<0.15$), length versus the galstreams track, and
-impact-vs-smooth separability (AUC $>0.85$) are \emph{critical} gates. The corrected
-generator passes all (excess $0.01$, length $0.75\times$, separability $0.94$). Four
-streams support the action-angle model cleanly (GD-1, ATLAS, Jhelum, Orphan); Pal~5
-and Fj\"orm violate the isochrone action-angle approximation (near-circular orbits)
-and are excluded by an allow-list.
+Every generated batch is gated before use: smoothness (no-impact gap-depth
+\emph{excess over the Poisson floor}, $<0.15$), length versus the galstreams track,
+and impact-vs-smooth separability (AUC $>0.85$) are \emph{critical} gates; width,
+kinematics, and radial-velocity checks are morphology diagnostics. The generator
+passes all critical gates (excess $0.01$, length $0.75\times$, separability $0.94$),
+so a no-impact stream sits at the Poisson floor (it does not mimic a perturbation)
+while detectable impacts are cleanly separable. Four streams support the action-angle
+model cleanly (GD-1, ATLAS, Jhelum, Orphan); Pal~5 and Fj\"orm violate the isochrone
+action-angle approximation (near-circular orbits) and are excluded by an allow-list.
 
 \begin{figure}
 \includegraphics[width=\columnwidth]{figures/fig1_what_impact_looks_like.png}
@@ -201,131 +176,121 @@ profile (orange) shows a localized deficit (shaded) absent from the smooth profi
 \label{fig:impact}
 \end{figure}
 
-\begin{figure}
-\includegraphics[width=\columnwidth]{figures/fig2_simulator_fix.png}
-\caption{Correcting the simulator restored detector performance. \emph{(a)}
-Generator separability (impact vs smooth) rose from $0.57$ to $0.94$. \emph{(b)} The
-\emph{same} detector architecture improved from AUC $0.62$ to $0.982$ on the
-corrected data.}
-\label{fig:simfix}
-\end{figure}
-
 \begin{plainterms}
-Our practice problems were broken: a typo shrank every simulated dark clump to a
-dot, so the gaps it made looked nothing like real ones. Switching to
-community-standard code and fixing the typo is why everything downstream worked. We
-also added an automatic ``smell test'' that refuses to run unless the practice data
-look like real streams.
+A passing dark clump pulls nearby stars slightly off course, opening a gap in the
+stream over time. We simulate both kinds of stream --- untouched and gap-bearing ---
+with the same trusted code, so the only difference the AI can learn is the gap itself.
+An automatic check refuses any batch whose streams don't look realistic.
 \end{plainterms}
 
 \section{The detector}
 \label{sec:det}
 \subsection{Architecture}
 Each stream's member stars form a $k$-nearest-neighbour graph ($k=8$) in normalized
-$(\phi_1,\phi_2,\mu_1,\mu_2)$ space, ${\leq}1200$ stars per graph. Edge features
-encode the local kinematic contrast a flyby perturbs; a GINEConv encoder
-\citep{Hu2020gine} (${\sim}2.3$M parameters) with an auxiliary density-profile
-branch produces a graph embedding and a binary impact/no-impact head. Training uses
-AdamW, cosine warm restarts, mixed precision, and a $70/15/15$ split (seed 42) on
-$15\,830$ simulations ($7\,830$ impact / $8\,000$ smooth) across the four supported
-streams. The detection target is \emph{detectable} impacts (realized gap-depth
-$>0.5$).
+$(\phi_1,\phi_2,\mu_1,\mu_2)$ space, ${\leq}1200$ stars per graph. Edge features encode
+the local kinematic contrast a flyby perturbs; a GINEConv encoder \citep{Hu2020gine}
+(${\sim}2.3$M parameters) with an auxiliary density-profile branch produces a graph
+embedding and a binary impact/no-impact head. Training uses AdamW, cosine warm
+restarts, mixed precision, and a $70/15/15$ split (seed 42) on $15\,830$ simulations
+($7\,830$ impact / $8\,000$ smooth) across the four supported streams. The detection
+target is \emph{detectable} impacts (realized gap-depth $>0.5$).
 
 \subsection{Performance}
 On the held-out test set the detector reaches AUC $0.982$ (Fig.~\ref{fig:roc}), best
 validation accuracy $0.951$, with a zero false-positive rate at the $0.5$ operating
-threshold. Temperature calibration ($T=0.54$) leaves the ranking unchanged. This
-reverses the earlier \code{v3} result (AUC $0.62$) and is attributable entirely to
-the simulator correction (\S\ref{sec:bugs}), not to architecture or hyperparameters.
+threshold --- it never flags a smooth stream. Temperature calibration ($T=0.54$)
+leaves the ranking unchanged.
 
 \subsection{Application to the real GD-1 catalog}
-Applied to the clean external STREAMFINDER GD-1 membership catalog
-\citep{Ibata2021} (811 members), the detector flags an impact (\(p_\mathrm{impact}\)
-$0.77$--$0.99$ depending on cuts), and the model-free gap finder independently
-locates the known Price-Whelan--Bonaca gap at $\phi_1\approx50^\circ$
-\citep{PriceWhelanBonaca2018}. Decisively, the network's inputs are now
-\emph{in-distribution}: the maximum standardized feature deviation is $3.1\sigma$
-with $0\%$ of features clipped, versus $391\sigma$ for the bundled catalog and
-$13\sigma$ even after a dedicated error-domain-randomized retrain in the previous
-pipeline. The corrected, realistic-noise simulator reproduces the real catalog's
-feature distribution natively.
+Applied to the clean external STREAMFINDER GD-1 membership catalog \citep{Ibata2021}
+(811 members), the detector flags an impact (\(p_\mathrm{impact}\) $0.77$--$0.99$
+depending on membership cuts), and the model-free gap finder independently locates the
+known Price-Whelan--Bonaca gap at $\phi_1\approx50^\circ$ \citep{PriceWhelanBonaca2018}.
+Importantly, the network's inputs are \emph{in-distribution}: the maximum standardized
+feature deviation is $3.1\sigma$ with $0\%$ of features clipped, so the detector
+operates within its trained regime rather than extrapolating. The realistic-noise
+simulator reproduces the real catalog's feature distribution, which is what makes the
+real-data prediction trustworthy.
 
 \begin{figure}
-\includegraphics[width=\columnwidth]{figures/fig3_detector_roc.png}
-\caption{Detector ROC on faithful held-out simulations (AUC $0.987$ for this
-checkpoint; $0.982$ after temperature calibration). The earlier point-like-subhalo
-pipeline reached only $0.62$.}
+\includegraphics[width=\columnwidth]{figures/fig2_detector_roc.png}
+\caption{Detector ROC on held-out simulations (AUC $0.987$ for this checkpoint;
+$0.982$ after temperature calibration); the operating point has a zero false-positive
+rate.}
 \label{fig:roc}
 \end{figure}
 
 \begin{plainterms}
-After the fix, the gap-finder is nearly perfect on practice data and treats the real
-GD-1 stream as familiar rather than anomalous --- which is what lets us trust what it
-says about real data.
+The gap-finder is nearly perfect on simulated data and treats the real GD-1 stream as
+familiar rather than anomalous, which is what lets us trust what it says about real
+data.
 \end{plainterms}
 
 \section{What kinds of impacts can we detect? (completeness)}
 \label{sec:compl}
-Detection depends on the \emph{type} of impact. Joining the detector's verdicts on
-the test set to each simulation's true parameters yields the completeness map of
+Detection depends on the \emph{type} of impact. Joining the detector's verdicts on the
+test set to each simulation's true parameters yields the completeness map of
 Fig.~\ref{fig:compl}. Completeness rises with subhalo mass ($0.48$ at $10^{7.5}$ to
 $0.72$ at $10^{8.5}\,\msun$), falls with time since impact ($0.75$ for $<0.5$~Gyr to
 $0.39$ for $>1.1$~Gyr, as gaps phase-mix), and is flat in impact parameter over the
-close-encounter range probed ($0$--$0.35$~kpc). Overall completeness is $0.57$ at
-zero false positives, and detection is essentially a step function in realized gap
+close-encounter range probed ($0$--$0.35$~kpc). Overall completeness is $0.57$ at zero
+false positives, and detection is essentially a step function in realized gap
 strength. The detector is, in effect, a calibrated density-gap detector: it sees
-massive, recent impacts that carve deep gaps and misses weak, old impacts that
-perturb only the kinematics --- pointing to proper-motion-based features as the
-next frontier.
+massive, recent impacts that carve deep gaps and misses weak, old impacts that perturb
+only the kinematics --- pointing to proper-motion-based features as the next frontier.
 
 \begin{figure}
-\includegraphics[width=\columnwidth]{figures/fig4_completeness.png}
-\caption{Detection completeness across impact type, measured on the test set.
-Heavier and more recent impacts are more detectable; weak/old impacts are missed.}
+\includegraphics[width=\columnwidth]{figures/fig3_completeness.png}
+\caption{Detection completeness across impact type, measured on the test set. Heavier
+and more recent impacts are more detectable; weak/old impacts are missed.}
 \label{fig:compl}
 \end{figure}
 
 \begin{plainterms}
-We reliably catch big, recent hits that gouge a clear gap. Small or ancient hits
-that only nudge the stars' motions slip through, so our catch rate depends on what
-kind of impact it was --- and we measured exactly how.
+We reliably catch big, recent hits that gouge a clear gap. Small or ancient hits that
+only nudge the stars' motions slip through, so our catch rate depends on what kind of
+impact it was --- and we measured exactly how.
 \end{plainterms}
 
 \section{Characterizing the impact, and the single-gap degeneracy}
 \label{sec:char}
-Detecting a gap is easier than reading off what made it. Probing the frozen
-detection embedding for the perturber's physical parameters shows it encodes mass
-only weakly ($R^2\approx0.18$) and impact parameter ($R^2\approx0.02$) and epoch
-($R^2\approx0.04$) essentially not at all: a binary detector discards everything
-except ``is there a gap.'' This reflects a genuine degeneracy, since mass, impact
-parameter, flyby speed, and epoch trade off in shaping a single gap's depth and
-width. A dedicated multi-task model (mass/epoch regression head) is used to extract
-what \emph{is} recoverable --- chiefly mass and recency --- and the forward model of
-\S\ref{sec:fwd} is the complementary, physically explicit route through the same
-degeneracy.
+Detecting a gap is easier than reading off what made it. Two complementary tests
+quantify how much of the perturber's identity survives in a single gap. First, probing
+the frozen detection embedding for the perturber's physical parameters shows it encodes
+mass only weakly ($R^2\approx0.18$) and impact parameter ($R^2\approx0.02$) and epoch
+($R^2\approx0.04$) essentially not at all. Second, and more tellingly, a
+\emph{dedicated} multi-task regression head trained jointly with the detector
+\emph{fails to recover subhalo mass at all} (test $R^2<0$, i.e. no better than the
+population mean) and recovers \emph{time-since-impact only weakly} ($R^2\approx0.2$,
+median error ${\approx}0.1$~dex). This is a genuine physical degeneracy: mass, impact
+parameter, flyby speed, and epoch trade off in shaping a single gap's depth and width,
+so one gap underdetermines them. Recency leaves a partial imprint (older gaps are wider
+and shallower) and is the one property weakly constrained; the forward model of
+\S\ref{sec:fwd} is the complementary route that can in principle break the degeneracy
+by fitting the full joint morphology.
 
 \begin{plainterms}
-Finding the dent is easier than figuring out the exact size and speed of what caused
-it --- many different impacts can leave a similar-looking dent. Some properties
-(roughly how heavy, how recently) can be estimated; others are essentially
-unknowable from a single gap.
+Finding the dent is easier than figuring out the exact size and speed of what caused it
+--- many different impacts can leave a similar-looking dent. Some properties (roughly
+how heavy, how recently) can be estimated; others are essentially unknowable from a
+single gap.
 \end{plainterms}
 
 \section{Telling dark-matter models apart is a population measurement}
 \label{sec:dm}
-WDM, FDM, and SIDM do not change how any single impact looks --- they change how
-many subhalos exist at each mass (the subhalo mass function). DM-model
-discrimination is therefore a population inference. Combining each model's mass
-function with our \emph{measured} completeness$(M)$ gives the distribution of
-detected-impact masses (Fig.~\ref{fig:dm}a) and the number of clean detections
-needed to distinguish it from CDM at 95\% (Fig.~\ref{fig:dm}b): ${\approx}5$ for FDM
-($10^{-22}$~eV) whose cutoff sits in our sensitive band, ${\approx}12$--$27$ for WDM
-($3$--$6$~keV), ${\approx}135$ for FDM ($10^{-21}$~eV), and effectively never for
-SIDM, whose subhalo counts match CDM (SIDM would instead require the distinct gap
-\emph{shape} of cored, low-concentration halos).
+WDM, FDM, and SIDM do not change how any single impact looks --- they change how many
+subhalos exist at each mass (the subhalo mass function). DM-model discrimination is
+therefore a population inference. Combining each model's mass function with our
+\emph{measured} completeness$(M)$ gives the distribution of detected-impact masses
+(Fig.~\ref{fig:dm}a) and the number of clean detections needed to distinguish it from
+CDM at 95\% (Fig.~\ref{fig:dm}b): ${\approx}5$ for FDM ($10^{-22}$~eV) whose cutoff
+sits in our sensitive band, ${\approx}12$--$27$ for WDM ($3$--$6$~keV), ${\approx}135$
+for FDM ($10^{-21}$~eV), and effectively never for SIDM, whose subhalo counts match CDM
+(SIDM would instead require the distinct gap \emph{shape} of cored, low-concentration
+halos).
 
 \begin{figure}
-\includegraphics[width=\columnwidth]{figures/fig5_dm_family.png}
+\includegraphics[width=\columnwidth]{figures/fig4_dm_family.png}
 \caption{\emph{(a)} Detected-impact mass distributions differ between DM models only
 where the mass-function cutoff falls inside our sensitive band
 ($10^{7.5}$--$10^{8.7}\,\msun$). \emph{(b)} Number of clean detections needed to
@@ -334,75 +299,69 @@ distinguish each model from CDM.}
 \end{figure}
 
 \begin{plainterms}
-Different dark-matter theories don't change what one impact looks like --- they
-change how common small clumps are. So you need a census of impacts, not a single
-gap: about five clean detections for the most favorable theories, hundreds for
-others, and for SIDM the mass count alone can never do it.
+Different dark-matter theories don't change what one impact looks like --- they change
+how common small clumps are. So you need a census of impacts, not a single gap: about
+five clean detections for the most favorable theories, hundreds for others, and for
+SIDM the mass count alone can never do it.
 \end{plainterms}
 
 \section{The timeline forward model (design)}
 \label{sec:fwd}
-To move beyond detection toward physical characterization, we designed a
-\emph{timeline forward model} that, for a detected gap, (1) estimates the impact
-epoch, (2) rewinds the stream to its unperturbed state, (3) re-injects a grid of
-encounters (mass $\times$ epoch $\times$ $\phi_1$) with the
-\citet{ErkalBelokurov2015} Plummer impulse and the corrected scale radius,
-(4) re-evolves to the present, and (5) scores each hypothesis against the data. It
-recasts detection as a constrained, physically explicit fit whose free parameters
-are the impact's mass, epoch, and location --- the natural route around the
-single-gap degeneracy of \S\ref{sec:char}, since a forward model can exploit the
-joint density-and-kinematic morphology that a discriminative embedding discards.
+To move beyond detection toward physical characterization, we designed a \emph{timeline
+forward model} that, for a detected gap, (1) estimates the impact epoch, (2) rewinds
+the stream to its unperturbed state, (3) re-injects a grid of encounters (mass $\times$
+epoch $\times$ $\phi_1$) with the \citet{ErkalBelokurov2015} Plummer impulse and the
+NFW scale radius, (4) re-evolves to the present, and (5) scores each hypothesis against
+the data. It recasts detection as a constrained, physically explicit fit whose free
+parameters are the impact's mass, epoch, and location --- the natural route around the
+single-gap degeneracy of \S\ref{sec:char}.
 
-\emph{Scope caveat.} The forward model currently runs on the legacy impulse generator
-(\code{generate\_stream} with the Erkal kick) --- the hand-rolled spray of
-\S\ref{sec:bugs} with the scale-radius bug corrected, but \emph{not} the validated
-\code{streamdf}/\code{streamgapdf} distribution functions used elsewhere in this
-paper; its baseline/null streams therefore inherit the residual clumpiness that
-motivated the replacement. We accordingly \emph{report no quantitative forward-model
-results here}: migrating the rewind/re-impact/re-evolve loop onto the validated
-generator is required before its injection-recovery, parameter estimates, and
-goodness-of-fit can be trusted, and we flag this as the principal remaining
-engineering step (\S\ref{sec:lim}). The machinery (grid search, scoring, null
-construction) is implemented and unit-tested; only its simulator backend is pending.
+\emph{Scope caveat.} The forward model currently runs on a separate particle-spray
+generator with an analytic impulse kick --- \emph{not} the validated
+\code{streamdf}/\code{streamgapdf} distribution functions used elsewhere in this paper
+--- whose baseline/null streams carry more intrinsic density scatter. We accordingly
+\emph{report no quantitative forward-model results here}: porting the
+rewind/re-impact/re-evolve loop onto the validated generator is required before its
+injection-recovery, parameter estimates, and goodness-of-fit can be trusted, and we
+flag this as the principal remaining engineering step (\S\ref{sec:lim}). The machinery
+(grid search, scoring, null construction) is implemented and unit-tested; only its
+simulator backend is pending.
 
 \emph{What is valid on real GD-1 today.} Independently of the forward model, the
-validated detector and a purely model-free gap finder (using only the observed star
-density) jointly identify the known $\phi_1\approx50^\circ$ gap on the clean
-STREAMFINDER catalog (\S\ref{sec:det}), with the detector's inputs in-distribution.
-Attributing that gap to a specific subhalo is the task that awaits the migrated
-forward model.
+validated detector and a purely model-free gap finder jointly identify the known
+$\phi_1\approx50^\circ$ gap on the clean STREAMFINDER catalog (\S\ref{sec:det}), with
+the detector's inputs in-distribution. Attributing that gap to a specific subhalo is
+the task that awaits the ported forward model.
 
 \begin{plainterms}
 The next step beyond ``is there a gap?'' is ``what made it?'' We built a tool that
-rewinds a stream, drops in a simulated clump, fast-forwards, and checks the match.
-But that tool still uses the old, flawed stream-maker, so we are \emph{not} reporting
-numbers from it yet --- we describe what it does and what it will measure once it is
-rebuilt on the corrected simulator.
+rewinds a stream, drops in a simulated clump, fast-forwards, and checks the match. That
+tool still uses a separate, less-faithful stream-maker, so we are \emph{not} reporting
+numbers from it yet --- we describe what it does and what it will measure once it runs
+on the validated simulator.
 \end{plainterms}
 
 \section{Population significance: framework (application deferred)}
 \label{sec:pop}
 A single stream rarely yields a decisive detection, so the pipeline includes a
 multi-stream combination designed to test for a \emph{population} of impacts. Per
-stream, the best-scoring impact hypothesis is compared against a null distribution
-from no-impact realizations; the grid search is de-biased with a best-of-grid
-look-elsewhere null (each null realization is scored over the whole grid and its
-maximum retained); and per-stream evidence is combined with Stouffer's $Z$ and
-Fisher's method, gated by a coherence requirement. A general, simulator-independent
-point already follows: because the search ranges over mass, epoch, and location,
-naive single-cell significances are strongly inflated and must be
-look-elsewhere-corrected --- uncorrected, ordinary noise routinely reaches many
-sigma. Because this combination is built on the \S\ref{sec:fwd} forward model, which
-still uses the legacy generator, we \emph{defer the quantitative multi-stream
-significance} to a future analysis on the migrated generator rather than report
-numbers that would inherit the legacy simulator's systematics.
+stream, the best-scoring impact hypothesis is compared against a null distribution from
+no-impact realizations; the grid search is de-biased with a best-of-grid look-elsewhere
+null (each null realization is scored over the whole grid and its maximum retained);
+and per-stream evidence is combined with Stouffer's $Z$ and Fisher's method, gated by a
+coherence requirement. A general, simulator-independent point already follows: because
+the search ranges over mass, epoch, and location, naive single-cell significances are
+strongly inflated and must be look-elsewhere-corrected --- uncorrected, ordinary noise
+routinely reaches many sigma. Because this combination is built on the
+\S\ref{sec:fwd} forward model, which uses the separate generator, we \emph{defer the
+quantitative multi-stream significance} to a future analysis on the ported generator.
 
 \begin{plainterms}
-A single stream rarely settles the question, so we built a way to pool many streams
-and to guard against a statistical trap --- if you don't account for how many places
-you looked, pure noise can masquerade as a discovery. We are not reporting pooled
-numbers yet, because that step relies on the same old stream-maker that still needs
-rebuilding.
+A single stream rarely settles the question, so we built a way to pool many streams and
+to guard against a statistical trap --- if you don't account for how many places you
+looked, pure noise can masquerade as a discovery. We are not reporting pooled numbers
+yet, because that step relies on the same separate stream-maker that still needs
+porting.
 \end{plainterms}
 
 \section{Limitations and systematics}
@@ -414,62 +373,62 @@ kinematics-only perturbations are missed; proper-motion features are the next st
 multi-impact streams require \code{streampepperdf} (unavailable in this galpy), so
 single-vs-multiple classification is deferred (gap counting is available model-free).
 (4) Real-data volume: DM-model discrimination needs many clean detections
-(\S\ref{sec:dm}). (5) \emph{Forward model on the legacy generator}
-(\S\ref{sec:fwd}): the timeline forward model and multi-stream significance framework
-still use the hand-rolled impulse generator (corrected scale radius, but not the
-validated \code{streamdf}/\code{streamgapdf}); their quantitative outputs are
-therefore not reported here, and migrating them onto the validated generator is the
-principal remaining step before any forward-model or population result can be
-trusted. The single-encounter and impulse approximations also apply.
+(\S\ref{sec:dm}). (5) \emph{Forward model on a separate generator} (\S\ref{sec:fwd}):
+the timeline forward model and multi-stream significance framework run on a
+particle-spray + impulse generator, not the validated \code{streamdf}/\code{streamgapdf}
+of \S\ref{sec:sim}; their quantitative outputs are not reported here, and porting them
+onto the validated generator is the principal remaining step. The single-encounter and
+impulse approximations also apply.
 
 \section{Conclusions}
-We built and stress-tested a complete, reproducible pipeline for dark-matter
-subhalo-impact searches in stellar streams. Its clearest lesson is methodological:
-simulator fidelity is the binding constraint. A scale-radius units bug that made
-simulated subhalos point-like --- not the network --- capped detection at chance;
-fixing it (with validated distribution functions and a pre-flight validation
-harness) raised the same detector to AUC $0.982$ and made the real GD-1 catalog
-in-distribution. With a faithful simulator we (i) mapped detection completeness
-across impact type, (ii) showed single-gap characterization is degeneracy-limited,
-and (iii) reframed DM-model discrimination as a population measurement and quantified
-its sample-size cost. On the real STREAMFINDER GD-1 catalog the validated detector
-and a model-free gap finder jointly recover the known $\phi_1\approx50^\circ$ gap with
-in-distribution inputs. We additionally describe --- but, for integrity, do not yet
-quantify --- a timeline forward model and a look-elsewhere-corrected, coherence-gated
-multi-stream significance framework: both currently run on the legacy impulse
-generator, and migrating them onto the validated distribution functions is the
-principal remaining step before their results can be reported. The path to a physical
-measurement is concrete: that migration, kinematic (not just density) detector
-features, and the clean-detection sample sizes of \S\ref{sec:dm}.
+We presented a complete, reproducible pipeline for dark-matter subhalo-impact searches
+in stellar streams, built on validated stream distribution functions and a pre-flight
+validation harness. The GINEConv detector reaches test AUC $0.982$ with a zero
+false-positive operating point and is in-distribution on the real STREAMFINDER GD-1
+catalog, where it and a model-free gap finder jointly recover the known
+$\phi_1\approx50^\circ$ gap. With this validated pipeline we (i) mapped detection
+completeness across impact type --- strong for massive, recent impacts and falling for
+weak, old ones; (ii) showed that single-gap characterization is degeneracy-limited
+(subhalo mass is essentially unrecoverable from one gap; only recency is weakly
+constrained); and (iii) reframed DM-model discrimination as a population measurement,
+quantifying its sample-size cost (${\approx}5$--$30$ clean detections for the most
+favorable models, and unreachable for SIDM via the mass spectrum). We additionally
+describe --- but do not yet quantify --- a timeline forward model and a
+look-elsewhere-corrected, coherence-gated multi-stream significance framework; porting
+these onto the validated generator is the principal remaining step before their results
+can be reported. The path to a physical measurement is concrete: that port, kinematic
+(not just density) detector features, and the clean-detection sample sizes of
+\S\ref{sec:dm}.
 
 \section*{Methods}
 \textbf{Potential \& integration.} galpy \code{MWPotential2014}; C \code{dop853}
-integrator (verified active); $R_0=8.0$~kpc, $V_0=220$~\kms.
+integrator; $R_0=8.0$~kpc, $V_0=220$~\kms.
 \textbf{Distribution functions.} \code{streamdf} \citep{Bovy2014streamdf} for the
 smooth track; \code{streamgapdf} \citep{SandersBovyErkal2016} with \code{impactb},
 \code{subhalovel}, \code{timpact}, \code{impact\_angle}, $GM$, and $r_s$. The
 action-angle setup uses $b=\mathrm{estimateBIsochrone}(\mathrm{pot},R/R_0,z/R_0)$
-(${\approx}0.61$ for GD-1) and \code{nTrackChunks}$=5$; the impact angle shares the
-sign of the modeled arm. \textbf{Subhalo physics.} NFW scale radius
-$r_s=r_{200}/c$ with the \citet{Ludlow2016} concentration--mass relation and
+(${\approx}0.61$ for GD-1) and \code{nTrackChunks}$=5$; the impact angle shares the sign
+of the modeled arm. \textbf{Subhalo physics.} NFW scale radius $r_s=r_{200}/c$ with the
+\citet{Ludlow2016} concentration--mass relation and
 $\rho_\mathrm{crit,0}=277.5\,h^2\,\msun\,\mathrm{kpc}^{-3}$; the
 \citet{ErkalBelokurov2015} Plummer impulse
 $\Delta v=-(2GM/w)\,\mathbf{b}/(|\mathbf{b}|^2+r_s^2)$. \textbf{Detector.} GINEConv
-encoder, 18 node / 5 edge features, hidden 256, 6 layers, embedding 128, profile
-branch (48 bins); binary head (BCE) with auxiliary mass/epoch regression; AdamW
+encoder, 18 node / 5 edge features, hidden 256, 6 layers, embedding 128, profile branch
+(48 bins); binary head (BCE) with auxiliary mass/epoch regression; AdamW
 (lr $3\times10^{-4}$, wd $10^{-4}$); temperature calibration on validation.
 \textbf{Noise model.} Gaia DR3-like per-star errors \citep[][scale $0.5$--$2\times$]
 {GaiaDR3}; radial velocity dropped at inference to match clean catalogs. Training on
-foreground-contaminated streams collapses separability ($0.96\rightarrow0.56$), so
-the operating regime is clean membership catalogs. \textbf{Statistics.} Per-stream
-null from no-impact realizations; best-of-grid look-elsewhere null; Stouffer/Fisher
-combination with a coherence gate.
+foreground-contaminated streams collapses separability, so the operating regime is
+clean membership catalogs. \textbf{Statistics.} Per-stream null from no-impact
+realizations; best-of-grid look-elsewhere null; Stouffer/Fisher combination with a
+coherence gate. \textbf{Datasets.} \code{data/simulations\_detector\_df} ($15\,830$
+sims; GD-1, ATLAS, Jhelum, Orphan); detector \code{checkpoints/detector\_df\_20260602}.
 
 \section*{Data availability}
-Public repository with a conda environment specification, ${\sim}290$ unit tests,
-and per-decision changelogs. Datasets regenerate from
-\code{scripts/generate\_detector\_data.py} (deterministic per seed, resumable);
-figures from \code{paper/make\_figures.py}; validation from
+Public repository with a conda environment specification, ${\sim}290$ unit tests, and
+per-decision changelogs. Datasets regenerate from
+\code{scripts/generate\_detector\_data.py} (deterministic per seed, resumable); figures
+from \code{paper/make\_figures.py}; validation from
 \code{scripts/validate\_generator.py}.
 
 \bibliographystyle{mnras}

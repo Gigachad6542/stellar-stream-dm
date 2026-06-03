@@ -50,7 +50,8 @@ Legend: ✓ verified against artifact · 📖 literature · ⏳ pending (retrain
 | mass R² (detected) | ≈0.18 | `characterize_probe.py` (0.183) | ✓ |
 | impact-parameter R² | ≈0.02 | same (0.024) | ✓ |
 | time R² | ≈0.04 | same (0.043) | ✓ |
-| dedicated mass_time recovery (§6) | — | `characterize_eval.py` on `detector_char_20260602` | ⏳ retrain finishing |
+| dedicated head: mass recovery | R²<0 (unrecoverable) | `characterize_eval.py` on `detector_char_20260602` (R²=−0.72) | ✓ |
+| dedicated head: time recovery | R²≈0.2, med err ≈0.1 dex | same (R²=+0.24 detected) | ✓ |
 
 ## DM-family distinguishability
 | Claim | Value | Source | Status |
