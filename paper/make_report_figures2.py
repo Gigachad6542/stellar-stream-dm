@@ -133,9 +133,46 @@ def fig_detection_vs_strength():
     save(fig, "fig16_detection_vs_strength.png")
 
 
+def fig_dm_forecast():
+    d = json.loads(Path("outputs/dm/discrimination_forecast.json").read_text())
+    order = ["FDM 1e-22", "WDM 3 keV", "WDM 4 keV", "WDM 6 keV", "FDM 1e-21", "SIDM"]
+    order = [m for m in order if m in d]
+    rate = [d[m]["rate_ratio"] for m in order]
+    ndet = [d[m].get("N_det_3sig", np.inf) for m in order]
+    lbl = [m.replace(" ", "\n") for m in order]
+    fig, ax = plt.subplots(1, 2, figsize=(9.4, 4.2))
+    cols = [C_G if (np.isfinite(n) and n < 50) else ("#fec44f" if np.isfinite(n) and n < 1e4 else C_B) for n in ndet]
+    ax[0].bar(lbl, rate, color=cols, width=0.7); ax[0].axhline(1.0, ls=":", color="#444")
+    ax[0].set_ylabel("detectable-impact rate / CDM"); ax[0].set_title("(a) Abundance suppression")
+    ax[0].set_ylim(0, 1.15)
+    nd_plot = [min(n, 1e6) for n in ndet]
+    ax[1].bar(lbl, nd_plot, color=cols, width=0.7); ax[1].set_yscale("log")
+    ax[1].set_ylabel("detections for 3σ vs CDM"); ax[1].set_title("(b) Detections needed (rate+mass)")
+    for i, n in enumerate(ndet):
+        ax[1].text(i, min(n, 1e6)*1.4, ("∞" if not np.isfinite(n) or n > 1e5 else f"{n:.0f}"),
+                   ha="center", fontsize=9, fontweight="bold")
+    fig.suptitle("Figure 17 — DM discrimination using abundance + mass (SIDM needs gap shape)",
+                 y=1.02, fontsize=12)
+    save(fig, "fig17_dm_forecast.png")
+
+
+def fig_sidm_morphology():
+    d = json.loads(Path("outputs/dm/sidm_morphology.json").read_text())
+    rows = d["rows"]; logM = [r[0] for r in rows]; cdm = [r[1] for r in rows]; sidm = [r[2] for r in rows]
+    x = np.arange(len(logM)); w = 0.38
+    fig, ax = plt.subplots(figsize=(6.4, 4.2))
+    ax.bar(x - w/2, cdm, w, color="#444", label="CDM (cuspy NFW)")
+    ax.bar(x + w/2, sidm, w, color=C_I, label=f"SIDM (cored, {d['core_factor']:.0f}× r_s)")
+    ax.set_xticks(x); ax.set_xticklabels([f"$10^{{{m:.1f}}}$" for m in logM])
+    ax.set_xlabel("subhalo mass  $M/M_\\odot$"); ax.set_ylabel("gap depth (at fixed mass)")
+    ax.set_title(f"Figure 18 — SIDM signal: cored subhalos carve shallower gaps (AUC {d['mean_auc']:.2f})")
+    ax.legend(); ax.set_ylim(0, 1.15)
+    save(fig, "fig18_sidm_morphology.png")
+
+
 if __name__ == "__main__":
     import traceback
     for fn in (fig_detector_vs_N, fig_multistream, fig_erkal_kick, fig_mass_function,
-               fig_stream_tracks, fig_detection_vs_strength):
+               fig_stream_tracks, fig_detection_vs_strength, fig_dm_forecast, fig_sidm_morphology):
         try: fn()
         except Exception: print(f"FAILED {fn.__name__}"); traceback.print_exc()

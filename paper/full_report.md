@@ -49,10 +49,14 @@ false-positive operating point and good calibration. We map detection **complete
 across impact type (rising with mass, falling with impact age) and show that single-gap
 characterization is **degeneracy-limited**: a dedicated head cannot recover subhalo mass
 (R²<0) and recovers epoch only weakly (R²≈0.2). DM-model discrimination is therefore a
-**population** measurement requiring ≈5 (FDM 10⁻²² eV) to ≈12–27 (WDM 3–6 keV)
-detections. On real data the detector is in-distribution and behaves correctly (flags
-GD-1's gap, nulls ATLAS), and we document a member-count floor (N≳500) below which sparse
-sampling mimics gaps. The timeline forward model recovers injected impacts exactly
+**population** measurement: combining the *abundance* of detectable impacts with their
+mass distribution in an Asimov likelihood-ratio forecast, a favorable model (WDM ≤3–4 keV,
+FDM 10⁻²² eV) separates from CDM with only **≈2 detected impacts** — though, since
+detectable impacts are rare (≈0.026 per stream), ≈300 streams to collect them — while SIDM
+(identical abundance and mass function to CDM) is separable only through its shallower
+cored-subhalo gaps (matched-mass AUC ≈ 0.84). On real data the detector is in-distribution
+and behaves correctly (flags GD-1's gap, nulls ATLAS), and we document a member-count floor
+(N≳500) below which sparse sampling mimics gaps. The timeline forward model recovers injected impacts exactly
 (rank 0/36); applied to the seven target streams with clean STREAMFINDER membership, the
 joint significance is null (Stouffer Z=1.40, Fisher p=0.28; incoherent), a CDM-consistent
 upper limit — and we show that naive per-stream significances up to 19σ collapse to ≈±2σ
@@ -300,27 +304,59 @@ recoverable; *(b)* subhalo mass is not.
 
 ## 8. Telling dark-matter models apart — a population measurement
 
-WDM/FDM/SIDM change how many subhalos exist at each mass, not how a single impact looks.
-DM-model discrimination is therefore a population inference. Combining each model's mass
-function with our *measured* completeness(mass) gives the detected-impact mass
-distribution (Figure 14a) and the number of clean detections to distinguish each model
-from CDM at 95% (Figure 14b): **≈5 for FDM (10⁻²² eV)** (cutoff in our band), **≈12–27
-for WDM (3–6 keV)**, ≈135 for FDM (10⁻²¹ eV), and effectively never for SIDM via the mass
-spectrum (its counts match CDM; it would require the distinct gap *shape* of cored
-halos). Figure 13 shows why: models diverge from CDM only where their cutoff falls inside
-our sensitive band.
+WDM/FDM/SIDM change the subhalo mass function, not how a single impact of given mass
+looks, so DM-model discrimination is a population inference. Two population observables
+carry the signal: the **abundance** of detectable impacts and their **mass distribution**
+(Figure 13 shows why models diverge from CDM only where their cutoff lies in our band).
+
+**Abundance is the dominant lever** — and the one our earlier estimate discarded by using
+only the normalized mass shape. WDM/FDM suppress low-mass subhalos, lowering the
+detectable-impact rate per stream relative to CDM (Figure 15a): to 0.24 (WDM 3 keV), 0.49
+(WDM 4 keV), 0.88 (WDM 6 keV), and 0.26 (FDM 10⁻²² eV), while FDM 10⁻²¹ eV and SIDM match
+CDM. The detected-mass distribution (Figure 14) adds shape information.
+
+We combine both in an **Asimov likelihood-ratio forecast** (a Poisson term for the rate
+plus a Kullback–Leibler term for the mass shape; `scripts/dm_discrimination_forecast.py`).
+A central, sobering number emerges: detectable impacts are intrinsically *rare* — the CDM
+rate is only λ_det ≈ 0.026 per GD-1-like stream, because deep, clean gaps require massive,
+recent subhalos. Over seven streams that is ≈0.18 expected detections, which is exactly
+why the multi-stream search (§11) finds none; **the forecast and the data agree.** With
+both observables, distinguishing a favorable model from CDM at 3σ needs only **≈2 detected
+impacts** (Figure 15b) — fewer than the ≈5 from the mass shape alone, because abundance
+adds independent information — but *collecting* those two requires ≈300 GD-1-like streams
+at the CDM rate. Models whose cutoff lies outside our sensitive band (FDM 10⁻²¹ eV, WDM
+6 keV) remain effectively indistinguishable by abundance + mass.
+
+**SIDM is the exception.** It shares CDM's abundance and mass function, so it is invisible
+to the above. Its signal is the gap *shape*: cored, low-concentration SIDM subhalos deliver
+a softer impulse and carve systematically **shallower gaps than cuspy NFW halos at fixed
+mass** (Figure 16) — a matched-mass gap-depth separability of **AUC ≈ 0.84** (CDM depth
+≈ 1.0 vs SIDM ≈ 0.5 at 10⁸ M⊙). This is a genuine handle the mass-spectrum analysis
+entirely missed, but realizing it is harder than the abundance signal because gap depth is
+entangled with the unknown perturber mass (§7); it requires breaking that degeneracy (the
+forward model, or external mass constraints) or a population-level gap-depth comparison.
 
 ![Figure 10](figures/fig10_transfer.png)
-**Figure 13.** Mass-function suppression f(M) per DM model relative to our sensitive
-band.
+**Figure 13.** Mass-function suppression f(M) per DM model relative to our sensitive band.
 
 ![Figure 4](figures/fig4_dm_family.png)
-**Figure 14.** *(a)* Detected-impact mass distributions by DM model. *(b)* Detections
-needed to distinguish each model from CDM.
+**Figure 14.** Detected-impact mass distributions by DM model (the shape component of the
+discrimination signal).
 
-> **In plain terms.** You need a census of impacts, not a single gap: ≈5 clean detections
-> for the most favorable theory, hundreds for others, and for SIDM the mass count alone
-> can never do it.
+![Figure 17](figures/fig17_dm_forecast.png)
+**Figure 15.** Rigorous discrimination forecast. *(a)* detectable-impact rate relative to
+CDM (abundance suppression); *(b)* detections needed for 3σ from CDM combining abundance +
+mass (green = a handful; red = effectively never). SIDM is ∞ here — it needs the gap shape.
+
+![Figure 18](figures/fig18_sidm_morphology.png)
+**Figure 16.** SIDM's only handle: at fixed mass, cored SIDM subhalos carve shallower gaps
+than cuspy NFW (CDM) ones (mean separability AUC ≈ 0.84).
+
+> **In plain terms.** Different theories mainly change how *common* small clumps are, so the
+> count of detectable impacts is the strongest clue — and detectable impacts are rare, which
+> is why our seven streams show none. Telling a favorable theory from standard dark matter
+> needs only ≈2 clean detections, but ≈300 streams to find them. SIDM is special: it makes
+> the same number of clumps, but its puffier clumps leave shallower dents — a separate clue.
 
 ## 9. Real-data application: detection
 
@@ -341,7 +377,7 @@ zero-false-positive operating point.
 
 **A member-count floor.** The detector's reliability depends on member count. A controlled
 test — subsampling the real GD-1 catalog — shows p_impact rising spuriously from 0.77 at
-N = 811 to ≈0.99 at N ≤ 100 (Figure 15): with too few stars, Poisson under-sampling
+N = 811 to ≈0.99 at N ≤ 100 (Figure 17): with too few stars, Poisson under-sampling
 produces apparent gaps that the detector reads as impacts. Reliable single-stream verdicts
 therefore require N ≳ 500 clean members. This is *why* only two streams yield trustworthy
 detector verdicts today (GD-1 and ATLAS); the other targets' clean catalogs are currently
@@ -349,12 +385,12 @@ too sparse (46–218 members). It is a data-volume limit, not a methodological o
 sets a concrete requirement for future catalogs.
 
 ![Figure 11](figures/fig11_detector_vs_N.png)
-**Figure 15.** Detector p_impact on real GD-1 versus member count (subsampled). Below
+**Figure 17.** Detector p_impact on real GD-1 versus member count (subsampled). Below
 N ≈ 500, sparse sampling mimics gaps and the score saturates — a reliability floor.
 
 > **In plain terms.** On the two real streams with enough clean stars the detector does
 > exactly the right thing — spots GD-1's gap, stays quiet on ATLAS. With too few stars it
-> gets fooled by random gaps (Figure 15), which is why only two streams qualify so far.
+> gets fooled by random gaps (Figure 17), which is why only two streams qualify so far.
 
 ## 10. The timeline forward model
 
@@ -394,7 +430,7 @@ realization is scored over the entire grid and its maximum retained, so the null
 the same search as the data); per-stream evidence is combined with Stouffer's Z and
 Fisher's method, **gated by a coherence requirement**.
 
-The look-elsewhere correction is decisive (Figure 16): naive single-cell significances as
+The look-elsewhere correction is decisive (Figure 18): naive single-cell significances as
 large as 19σ (Sylgr) and 12σ (Pal 5) collapse to ≈ ±2σ once the search is accounted for.
 Per-stream corrected evidence is modest and mixed in sign (Table 3); the joint result is
 **null** — Stouffer Z = 1.40 (p = 0.08), Fisher χ² ⇒ p = 0.28, with the coherence gate not
@@ -409,7 +445,7 @@ result: unaccounted-for trials manufacture many-sigma "signals" from noise.
 | z (LE) | +0.4 | +2.2 | +2.7 | +1.1 | +1.0 | −2.5 | −1.3 |
 
 ![Figure 12](figures/fig12_multistream.png)
-**Figure 16.** No coherent detection across seven streams. Naive per-stream significance
+**Figure 18.** No coherent detection across seven streams. Naive per-stream significance
 (grey) collapses under the look-elsewhere correction (blue); the joint significance is
 null (Stouffer Z = 1.40, Fisher p = 0.28).
 
