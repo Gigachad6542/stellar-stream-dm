@@ -25,8 +25,8 @@ bug and has been removed.
 - [x] Abstract (plain-language summary + technical abstract)
 - [x] All sections §1–§11 + Methods + Reproducibility
 - [ ] Drop the one preliminary number in §6 once the mass_time eval completes
-- [ ] Final editorial read-through for tone/consistency
-- [ ] Convert to venue LaTeX (the old `mnras_paper.tex` is SUPERSEDED — regenerate)
+- [x] Tone pass (academic body) + citation audit (`claims_audit.md`); all cites resolve
+- [x] Regenerated `mnras_paper.tex` from manuscript.md (ASCII-clean, Overleaf-ready)
 
 ## Figures (`paper/make_figures.py` → `paper/figures/`)
 - [x] fig1 what an impact looks like (smooth vs gapped + density profile)
