@@ -76,13 +76,22 @@ withheld pending the forward-model migration to the validated generator.)
 | Fig 6 (multistream) | removed from manuscript | presented legacy-generator results |
 | Look-elsewhere inflation point | kept (qualitative, simulator-independent) | a general statistical fact |
 
-## Real-data application (detector on clean catalogs) — full report §8
+## Real-data detection (full report §9)
 | Claim | Value | Source | Status |
 |---|---|---|---|
-| GD-1 p_impact / OOD / gap | 0.77 / 3.1σ / yes (φ₁≈50°) | StreamImpactDetector on GD1_streamfinder.h5 | ✓ |
-| ATLAS p_impact / OOD / gap | 0.06 / 1.9σ / none | StreamImpactDetector on ATLAS_clean.h5 | ✓ |
-| Both real streams in-distribution | 3.1σ, 1.9σ | same | ✓ |
-| Model-free GD-1 gap φ₁≈50° | — | real STREAMFINDER density only | ✓ |
+| GD-1 p_impact / OOD / gap | 0.77 / 3.1σ / yes (φ₁≈50°) | StreamImpactDetector on GD1_streamfinder.h5 (811) | ✓ |
+| ATLAS p_impact / OOD / gap | 0.06 / 1.9σ / none | StreamImpactDetector on ATLAS_clean.h5 (2860) | ✓ |
+| Member-count floor (N-dependence) | p 0.77→0.99 as N 811→100 | GD-1 subsample test | ✓ |
+| Clean catalogs for all 7 streams | STREAMFINDER auto-matched | fetch_streamfinder_streams.py | ✓ |
+
+## Forward model + multistream (full report §10–§11) — real-data analyses
+| Claim | Value | Source | Status |
+|---|---|---|---|
+| Injection-recovery | rank 0/36, beats null | injection_recovery_results.json | ✓ |
+| Real GD-1 gap | φ₁=49.9°, depth 0.37 | forward_model_results.json | ✓ |
+| GD-1 single-subhalo attribution | not significant after LE | significance.json | ✓ |
+| Multistream joint (7 streams) | Stouffer Z=1.40, Fisher p=0.28, incoherent | joint_significance_corrected.json | ✓ |
+| Naive→LE collapse | Sylgr 18.9→−1.3, Pal5 11.8→1.0 | same | ✓ |
 
 ## Report figures (paper/figures/, current pipeline)
 fig1 example streams · fig2 ROC · fig3/fig5 completeness (1D/2D) · fig4 DM-family ·

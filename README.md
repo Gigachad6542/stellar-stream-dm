@@ -7,8 +7,9 @@ characterization/forward-model layer.
 
 **Read the report** (in [`paper/`](paper/)):
 - [`paper/full_report.pdf`](paper/full_report.pdf) — the comprehensive technical
-  report (14 pp, 10 figures); source [`full_report.md`](paper/full_report.md).
-- [`paper/manuscript.pdf`](paper/manuscript.pdf) — the condensed paper (9 pp);
+  report (18 pp, 15 figures, real-data application + 7-stream significance);
+  source [`full_report.md`](paper/full_report.md).
+- [`paper/manuscript.pdf`](paper/manuscript.pdf) — the condensed paper (11 pp);
   source [`manuscript.md`](paper/manuscript.md).
 
 ## What it does, and what it finds

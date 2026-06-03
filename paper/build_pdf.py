@@ -71,17 +71,17 @@ def link_callback(uri, rel):
 
 
 CSS = """
-@page { size: A4; margin: 1.8cm 1.9cm; }
-body { font-family: "DV"; font-size: 9.6pt; line-height: 1.38; color: #111; text-align: justify; }
-h1 { font-size: 17pt; line-height: 1.2; margin: 0 0 2pt 0; }
-h2 { font-size: 12.5pt; margin: 14pt 0 4pt 0; border-bottom: 0.6pt solid #bbb; padding-bottom: 2pt; }
-h3 { font-size: 10.6pt; margin: 9pt 0 3pt 0; }
-p { margin: 0 0 6pt 0; }
-code { font-family: "DV"; background: #f0f0f0; font-size: 8.8pt; }
-blockquote { background: #eef4fb; border-left: 3pt solid #2c7fb8; margin: 6pt 0; padding: 5pt 9pt; font-size: 9.2pt; }
-img { width: 86%; }
+@page { size: A4; margin: 2.0cm 2.1cm; }
+body { font-family: "DV"; font-size: 10.5pt; line-height: 1.5; color: #111; text-align: justify; }
+h1 { font-size: 18pt; line-height: 1.2; margin: 0 0 3pt 0; }
+h2 { font-size: 13.5pt; margin: 17pt 0 5pt 0; border-bottom: 0.6pt solid #bbb; padding-bottom: 2pt; }
+h3 { font-size: 11.4pt; margin: 11pt 0 4pt 0; }
+p { margin: 0 0 8pt 0; }
+code { font-family: "DV"; background: #f0f0f0; font-size: 9.6pt; }
+blockquote { background: #eef4fb; border-left: 3pt solid #2c7fb8; margin: 8pt 0; padding: 6pt 11pt; font-size: 10pt; }
+img { width: 82%; }
 hr { border: 0; border-top: 0.5pt solid #ccc; }
-table { border-collapse: collapse; font-size: 8.8pt; }
+table { border-collapse: collapse; font-size: 9.4pt; }
 td, th { border: 0.5pt solid #aaa; padding: 2pt 5pt; }
 """
 

@@ -74,13 +74,22 @@ def main() -> int:
         t0 = time.time()
         scfg = streams_cfg.get(name, {})
         age = float(scfg.get("disruption_age_gyr", scfg.get("isochrone_age_gyr", 5.0)))
-        # Catalog priority: a CLEAN external membership catalog (STREAMFINDER)
-        # first -- the bundled streams.h5 GD-1 is ~96% field contamination that
-        # washes out the real gap and manufactures a false null. Then multi-epoch
-        # (real RVs), then the default bundle.
+        # Catalog choice for the forward model (model-free gap + data-driven null,
+        # which is robust to contamination but benefits from member count): prefer a
+        # CLEAN external STREAMFINDER catalog only when it is dense enough (>500
+        # members, e.g. GD-1); otherwise fall back to the denser multi-epoch / bundle
+        # so sparse clean catalogs don't starve the gap finder.
         sf = Path("data/processed") / f"{name}_streamfinder.h5"
         me = Path("data/processed") / f"{name}_multiepoch.h5"
+        sf_n = 0
         if sf.exists():
+            try:
+                import h5py as _h5
+                with _h5.File(sf, "r") as _f:
+                    sf_n = int(_f[f"streams/{name}/members/phi1"].shape[0])
+            except Exception:
+                sf_n = 0
+        if sf.exists() and sf_n >= 500:
             h5 = str(sf)
         elif me.exists():
             h5 = str(me)
