@@ -12,22 +12,17 @@ significance** still run on the legacy homemade generator, so their results
 NOT stated** in §8–§9. *Principal remaining engineering step: migrate the forward
 model's rewind/re-impact/re-evolve loop onto the validated generator, then report.*
 
-## Status: manuscript rebuilt around the CURRENT pipeline
-The paper reports CURRENT-STATE results only — no development history / before-after.
-("detection is intrinsically weak, AUC 0.62") was an artifact of the scale-radius
-bug and has been removed.
+## Status: manuscript reports CURRENT-STATE results only
+No development history / before-after numbers appear in the paper.
 
-## Core results (all current)
-- [x] Simulator rebuilt on validated DFs (streamdf/streamgapdf) + validation harness
-- [x] Detector retrained on corrected data → **test AUC 0.982** (was 0.62)
+## Core results (all on the validated simulator)
+- [x] Simulator on validated DFs (streamdf/streamgapdf) + validation harness
+- [x] Detector: **test AUC 0.982**, zero false-positive operating point
 - [x] Real GD-1 in-distribution (3.1σ) + gap detected (φ1≈50)
 - [x] Completeness map across impact type (mass/time/b/strength)
-- [x] Embedding probe → single-gap characterization degeneracy
+- [x] Characterization: mass unrecoverable (R²<0), time weakly (R²≈0.2)
 - [x] DM-family population distinguishability (N_det per model)
-- [x] Injection–recovery exact (rank 0/36) with corrected rs
-- [x] Multistream joint significance: null, CDM-consistent upper limit
-- [~] Dedicated mass_time characterization head — RETRAINING (ckpt detector_char_20260602);
-      update §6 with the recovery-vs-strength curve when it lands
+- [~] Forward model + multistream: DESCRIBED only (legacy generator) — see integrity rule
 
 ## Manuscript (`manuscript.md`)
 - [x] Full rewrite to current state, dual-register (plain-language boxes + Methods)
@@ -39,11 +34,9 @@ bug and has been removed.
 
 ## Figures (`paper/make_figures.py` → `paper/figures/`)
 - [x] fig1 what an impact looks like (smooth vs gapped + density profile)
-- [x] fig2 simulator fix (separability + AUC before/after)
-- [x] fig3 detector ROC (0.98)
-- [x] fig4 completeness vs mass & time
-- [x] fig5 DM-family distinguishability (distributions + N_det)
-- [x] fig6 multistream (look-elsewhere collapse, null)
+- [x] fig2 detector ROC (0.98)
+- [x] fig3 completeness vs mass & time
+- [x] fig4 DM-family distinguishability (distributions + N_det)
 - [ ] Optional: pipeline schematic; characterization recovery curve (after retrain)
 
 ## Repo / reproducibility
