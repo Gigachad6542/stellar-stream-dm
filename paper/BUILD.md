@@ -1,31 +1,33 @@
 # Building the paper
 
 The manuscript exists in two forms:
-- `manuscript.md` — the working draft (always current; results filled from v3).
-- `mnras_paper.tex` — the MNRAS-formatted LaTeX for submission.
-- `references.bib` — shared BibTeX bibliography (18 entries).
-- `figures/` — generated figures (regenerate with `scripts/plot_paper_figures.py`).
+- `manuscript.md` — **the current, authoritative draft** (corrected-simulator
+  pipeline, June 2026; dual-register with plain-language boxes + a Methods appendix).
+- `mnras_paper.tex` — **SUPERSEDED** (encodes the old v3 numbers; regenerate from
+  `manuscript.md` before submission — see the notice at its top).
+- `references.bib` — shared BibTeX bibliography (20 entries; includes Bovy 2014
+  `streamdf` and Sanders, Bovy & Erkal 2016 `streamgapdf`).
+- `figures/` — generated figures (regenerate with `python paper/make_figures.py`).
 
-## Build the MNRAS PDF
+## Figures
+```bash
+python paper/make_figures.py          # writes paper/figures/fig1..fig6 .png
+```
+fig1 example streams · fig2 simulator fix · fig3 detector ROC · fig4 completeness ·
+fig5 DM-family distinguishability · fig6 multistream significance.
 
-**Overleaf (easiest):** create a project from the "Monthly Notices of the Royal
-Astronomical Society (MNRAS)" template, then upload `mnras_paper.tex`,
-`references.bib`, and the `figures/` folder. It compiles as-is (the template
-provides `mnras.cls` and `mnras.bst`).
-
-**Locally:** requires a TeX distribution (TeX Live / MiKTeX) and the MNRAS class
-files `mnras.cls` + `mnras.bst` (from the RAS or the Overleaf template) placed
-next to the `.tex`:
-
+## Build the MNRAS PDF (after regenerating the .tex from manuscript.md)
+**Overleaf (easiest):** new project from the MNRAS template; upload `mnras_paper.tex`,
+`references.bib`, and `figures/`.
+**Locally:** needs TeX Live/MiKTeX + `mnras.cls`/`mnras.bst`:
 ```bash
 latexmk -pdf mnras_paper.tex
-# or:
-pdflatex mnras_paper && bibtex mnras_paper && pdflatex mnras_paper && pdflatex mnras_paper
 ```
 
 ## Notes
-- Target venue: MNRAS.
-- Author/affiliation and the e-mail are placeholders — fill before submission.
-- All headline numbers (AUC 0.618; joint Fisher p=0.30; injection-recovery rank
-  0/60) are sourced from the v3 pipeline; see `../changelog/2026-06-01_*` and
-  `outputs/multistream/joint_significance_v3.json`.
+- Target venue: MNRAS (or arXiv preprint).
+- Author/affiliation/e-mail are placeholders — fill before submission.
+- Headline numbers are sourced from the corrected pipeline: detector test
+  AUC 0.982 (`checkpoints/detector_df_20260602`, `calibration.json`); multistream
+  joint Stouffer Z=1.40 / Fisher p=0.28 (`outputs/multistream/joint_significance_corrected.json`);
+  injection-recovery rank 0/36. See `../changelog/2026-06-02_*`.
