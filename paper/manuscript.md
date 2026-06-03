@@ -423,7 +423,7 @@ index; per-decision changelogs. Datasets regenerate from
 from `paper/make_figures.py`; validation from `scripts/validate_generator.py`.
 
 ## References
-Compiled from `references.bib` via `\citep`/`\citet`. Works cited in this version:
+Works cited (full entries in `references.bib`):
 Banik et al. (2021); Bonaca et al. (2019); Bovy (2014, `streamdf`); Bovy (2015,
 `galpy`); Carlberg (2012); Erkal & Belokurov (2015); Fardal et al. (2015,
 `streamspraydf`); Gaia Collaboration (2023, DR3); Hu et al. (2020, GINEConv);

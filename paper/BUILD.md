@@ -9,9 +9,17 @@ The manuscript exists in two forms:
   `streamdf` and Sanders, Bovy & Erkal 2016 `streamgapdf`).
 - `figures/` — generated figures (regenerate with `python paper/make_figures.py`).
 
+## Standalone PDF (no LaTeX needed)
+```bash
+python paper/build_pdf.py             # markdown -> paper/manuscript.pdf (9 pp)
+```
+Pure-Python (markdown + xhtml2pdf/reportlab); embeds a Unicode font and converts
+`\citep`/`\citet` to readable author-year citations. The committed
+`paper/manuscript.pdf` is the shareable read-only copy.
+
 ## Figures
 ```bash
-python paper/make_figures.py          # writes paper/figures/fig1..fig6 .png
+python paper/make_figures.py          # writes paper/figures/fig1..fig4 .png
 ```
 fig1 example streams · fig2 simulator fix · fig3 detector ROC · fig4 completeness ·
 fig5 DM-family distinguishability · fig6 multistream significance.
