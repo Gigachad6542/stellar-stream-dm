@@ -260,8 +260,9 @@ parameter over the close-encounter range. The joint map (Figure 10) shows the up
 (massive, recent) recovered with high probability and the lower-left (light, old) largely
 missed. Overall completeness is 0.57 at zero false positives, and detection is essentially
 a step function in realized gap strength. The detector is a calibrated **density-gap
-detector**: it sees deep gaps and misses kinematics-only perturbations — pointing to
-proper-motion features as the route to extend sensitivity.
+detector**: it sees deep gaps and misses kinematics-only perturbations. The natural
+question — whether proper-motion features could extend sensitivity to the weak/old
+impacts — we test directly in §12.2, with an instructive (and limiting) answer.
 
 ![Figure 3](figures/fig3_completeness.png)
 **Figure 9.** Completeness vs subhalo mass (left) and time since impact (right).
@@ -458,8 +459,7 @@ null (Stouffer Z = 1.40, Fisher p = 0.28).
 
 1. **Single-gap degeneracy** (§7): mass/geometry/epoch are only partially recoverable from
    one gap; the forward model and population statistics are the routes around it.
-2. **Density-only sensitivity** (§6): weak/old, kinematics-only perturbations are missed;
-   proper-motion-pattern features are the clearest next step.
+2. **Density-only sensitivity, and why kinematics do not (yet) help** — see §12.2.
 3. **Member-count floor** (§9): reliable detector verdicts need N ≳ 500 clean members;
    most clean catalogs are currently sparser.
 4. **Action-angle model validity**: clean *generation* is limited to eccentric streams;
@@ -469,6 +469,39 @@ null (Stouffer Z = 1.40, Fisher p = 0.28).
    particle-spray re-evolution engine; the look-elsewhere null mitigates search bias.
 6. **Real-data volume**: DM-model discrimination needs the population sample sizes of §8;
    only a handful of streams currently have clean, dense catalogs.
+
+### 12.2 The kinematic frontier: a real signal below the noise floor
+Because the detector is density-driven and detectable impacts are rare (§6, §8), the
+obvious way to raise the detectable rate — and thus the DM-typing power — is to exploit
+the *kinematic* signature: a subhalo flyby imprints a localized, antisymmetric "kink" in
+the mean proper motion along the stream (the velocity analog of the density gap). We
+tested this directly. In **noise-free** simulations the kink is a powerful discriminant —
+a matched kink statistic reaches AUC ≈ 1.0, *exceeding* the density gap (≈0.96; Figure 19).
+But under **realistic Gaia proper-motion errors** the same statistic collapses to ≈0.49
+(chance), because the velocity kick (∼0.1 mas yr⁻¹) sits below the per-star astrometric
+noise for faint stream stars; the density gap, a counting statistic, is far more
+noise-robust (0.96 → 0.70). A precision sweep shows the kink survives for *strong* impacts
+to σ_pm ≈ 0.3 mas yr⁻¹ (AUC ≈ 0.86) — but those are already caught by density — while the
+*weak/old* impacts we hoped to newly detect remain buried.
+
+The conclusion is actionable: **a kinematic-feature detector will not extend completeness
+at current Gaia precision** (we verified this with the model-free diagnostic before
+committing to a costly retrain), but the signal is genuinely present and would be unlocked
+by better astrometry — deeper Gaia data releases or a dedicated high-precision survey.
+This, together with more clean dense catalogs (§9), is the concrete route to raising the
+detectable rate and hence the dark-matter-typing power of the method.
+
+![Figure 19](figures/fig19_kinematic_noise.png)
+**Figure 19.** The kinematic kink out-performs the density gap in noise-free simulations
+(AUC ≈ 1.0 vs 0.96) but collapses to chance under realistic Gaia proper-motion errors,
+while the density gap stays robust — the velocity signal is real but below today's
+astrometric noise floor.
+
+> **In plain terms.** A passing clump also "kicks" the stars' motions, not just their
+> spacing — and in perfect data that kick is an even clearer fingerprint than the gap. But
+> today's measurements of how stars move aren't precise enough to see it for the faint,
+> weak cases; sharper future surveys would change that. We checked this cheaply instead of
+> burning days training a model that the data say can't work yet.
 
 ## 13. Reproducibility and software validation
 
