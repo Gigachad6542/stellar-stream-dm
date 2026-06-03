@@ -6,6 +6,11 @@
 whose headline numbers were invalidated by a subhalo size-scale bug documented in
 §3.2 and re-run here.
 
+*Format note: this manuscript follows a dual-register convention. A non-technical
+**Plain-language summary** and per-section **In plain terms** notes (set off in
+blockquotes) accompany the full technical text and the **Methods** appendix; the
+specialist reader may skip the former without loss of rigor.*
+
 ---
 
 > ### Plain-language summary
@@ -88,10 +93,13 @@ must be separated from baryonic perturbers, epicyclic density variations, and
 selection systematics, and a single gap underdetermines the perturber's (mass,
 impact parameter, epoch). **Cost:** the forward model is expensive, making
 likelihood-based search over many hypotheses slow. We address both with a graph
-neural network (GNN) detector and simulation-based inference (SBI), plus a
-constrained forward-model search we call the *timeline forward model*.
+neural network (GNN) detector — whose edge-conditioned message passing
+\citep{Hu2020gine} respects the permutation symmetry of a member-star set and the
+locality of kinematic perturbations — and a constrained forward-model search we
+call the *timeline forward model*, which recasts detection as a physically explicit
+rewind/re-impact/re-evolve comparison.
 
-This paper's spine is a lesson we learned the hard way and now make central:
+A central finding of this work, which we develop throughout, is that
 **the dominant control on what such a pipeline can measure is the fidelity of the
 training simulator, not the sophistication of the network.** We document a concrete
 instance (a scale-radius units bug that made every simulated subhalo point-like),
@@ -124,27 +132,29 @@ The system has five stages, each independently testable:
 ## 3. The simulator, and why fidelity is everything
 
 ### 3.1 Generation with validated distribution functions
-Streams are integrated in an `MWPotential2014`-class Galactic potential (galpy, C
-`dop853`). Progenitor initial conditions are taken directly from the `galstreams`
+Streams are integrated in an `MWPotential2014`-class Galactic potential
+\citep[`galpy`, C `dop853` integrator;][]{Bovy2015galpy}. Progenitor initial
+conditions are taken directly from the `galstreams` \citep{Mateu2023galstreams}
 6-D track at the center of each observed φ₁ window (`set_progenitor_ic_track6d`),
 which reproduces literature proper motions by construction. Smooth ("no-impact")
 streams are drawn from the action-angle distribution function **`streamdf`**
-\citep{Bovy2014}; streams with a single subhalo gap from **`streamgapdf`**
+\citep{Bovy2014streamdf}; streams with a single subhalo gap from **`streamgapdf`**
 \citep{SandersBovyErkal2016}, a subclass of `streamdf` that shares the identical
 smooth track and differs *only* by the encoded impact. This shared-track design is
 deliberate: the only systematic difference between the two training classes is the
-gap itself, so the detector cannot cheat on a generator artifact. (A particle-spray
+gap itself, so the detector cannot exploit a generator artifact. (A particle-spray
 generator, `streamspraydf` \citep{Fardal2015}, is used for cross-checks.)
 
-### 3.2 Two bugs, and the fix that unlocked the project
-The previous bespoke generator failed in two ways that, together, capped the entire
+### 3.2 Two simulator defects and their correction
+The previous bespoke generator failed in two ways that, together, limited the entire
 pipeline:
 
 - **A scale-radius units error.** `scale_radius_from_mass` computed the critical
   density in M⊙ Mpc⁻³ but used it as M⊙ kpc⁻³ — a 10⁹× density error that returned
   subhalo scale radii ~10³ too small. Every simulated impact (including all earlier
   `v3` results) therefore used an effectively **point-like** subhalo (~0.3 pc for a
-  10⁸ M⊙ halo instead of ~0.25 kpc), producing unphysically sharp, tiny kicks.
+  10⁸ M⊙ halo instead of ~0.25 kpc), producing unphysically sharp, spatially
+  narrow velocity kicks.
 - **A clumpy bespoke spray** whose intrinsic density fluctuations (excess over the
   Poisson floor ≈0.4) swamped real gaps.
 
@@ -173,10 +183,10 @@ profile (orange) shows a localized deficit (shaded) absent from the smooth profi
 (blue).
 
 ![Figure 2](figures/fig2_simulator_fix.png)
-**Figure 2.** Fixing the simulator unlocked the detector. *(a)* Generator
+**Figure 2.** Correcting the simulator restored detector performance. *(a)* Generator
 separability (impact vs smooth) rose from 0.57 to 0.94 after replacing the bespoke
-generator and correcting the scale-radius bug. *(b)* The *same* detector
-architecture jumped from AUC 0.62 to 0.982 when trained on the corrected data.
+generator and correcting the scale-radius error. *(b)* The *same* detector
+architecture improved from AUC 0.62 to 0.982 when trained on the corrected data.
 
 > **In plain terms.** Our practice problems were broken: a typo shrank every
 > simulated dark clump to a dot, so the gaps it made looked nothing like real ones.
@@ -200,15 +210,15 @@ target is *detectable* impacts (realized gap-depth > 0.5).
 On the held-out test set the detector reaches **AUC 0.982** (Figure 3), best
 validation accuracy 0.951, with a **zero false-positive rate** at the 0.5 operating
 threshold — it never flags a smooth stream. Temperature calibration (T=0.54) leaves
-the ranking unchanged. This is the headline reversal of the earlier `v3` AUC 0.62,
-attributable entirely to the simulator fix (§3.2), not to architecture or
-hyperparameters.
+the ranking unchanged. This reverses the earlier `v3` result (AUC 0.62) and is
+attributable entirely to the simulator correction (§3.2), not to changes in
+architecture or hyperparameters.
 
-### 4.3 Real GD-1: in-distribution at last
+### 4.3 Application to the real GD-1 catalog
 Applied to the clean external STREAMFINDER GD-1 membership catalog
 \citep{Ibata2021} (811 members), the detector flags an impact (p_impact 0.77–0.99
 depending on cuts), and the model-free gap finder independently locates the known
-Price-Whelan–Bonaca gap at φ₁≈50°. Decisively, the network's inputs are now
+Price-Whelan–Bonaca gap at φ₁≈50° \citep{PriceWhelanBonaca2018}. Decisively, the network's inputs are now
 **in-distribution**: the maximum standardized feature deviation is 3.1σ with 0%
 of features clipped, versus 391σ for the bundled catalog and 13σ even after a
 dedicated error-domain-randomized retrain in the previous pipeline. The corrected,
@@ -380,21 +390,21 @@ more clean membership catalogs, and the population sample sizes of §7.
 
 **Potential & integration.** galpy `MWPotential2014`; C `dop853` integrator
 (verified active, no Python fallback); R₀=8.0 kpc, V₀=220 km s⁻¹.
-**Distribution functions.** `streamdf` \citep{Bovy2014} for the smooth track with
-velocity dispersion σ_v from config; `streamgapdf` \citep{SandersBovyErkal2016} with
+**Distribution functions.** `streamdf` \citep{Bovy2014streamdf} for the smooth track
+with velocity dispersion σ_v from config; `streamgapdf` \citep{SandersBovyErkal2016} with
 `impactb`, `subhalovel`, `timpact`, `impact_angle`, GM, and r_s. The
 action-angle setup uses `b = estimateBIsochrone(pot, R/R₀, z/R₀)` (≈0.61 for GD-1)
 and `nTrackChunks=5`; `impact_angle` must share the sign of the modeled arm.
-**Subhalo physics.** NFW scale radius r_s = r_200/c with concentration from
-\citet{} and ρ_crit,0 = 277.5 h² M⊙ kpc⁻³; Erkal–Belokurov (2015) Plummer impulse
-Δv = −(2GM/w)·b/(|b|²+r_s²).
+**Subhalo physics.** NFW scale radius r_s = r_200/c with the
+\citet{Ludlow2016} concentration–mass relation and ρ_crit,0 = 277.5 h² M⊙ kpc⁻³;
+\citet{ErkalBelokurov2015} Plummer impulse Δv = −(2GM/w)·b/(|b|²+r_s²).
 **Detector.** GINEConv encoder, 18 node / 5 edge features, hidden 256, 6 layers,
 embedding 128, profile branch (48 bins, compact feature set); binary head trained
 with BCE, auxiliary regression (`mass_time` = [log₁₀M, log₁₀t]) with weight
 γ_reg; AdamW (lr 3×10⁻⁴, wd 10⁻⁴); temperature calibration on the validation split.
-**Noise model.** Gaia DR3-like per-star errors (`add_gaia_noise_randomized`, scale
-0.5–2×); radial velocity dropped at inference (`ignore_rv`) to match clean
-membership catalogs. Training on contaminated (foreground-injected) streams collapses
+**Noise model.** Gaia DR3-like per-star errors \citep[][`add_gaia_noise_randomized`,
+scale 0.5–2×]{GaiaDR3}; radial velocity dropped at inference (`ignore_rv`) to match
+clean membership catalogs. Training on contaminated (foreground-injected) streams collapses
 separability (G6 0.96→0.56), so the operating regime is clean membership catalogs.
 **Statistics.** Per-stream null from no-impact realizations; best-of-grid
 look-elsewhere null; Stouffer/Fisher combination with a coherence gate;
@@ -408,9 +418,10 @@ index; per-decision changelogs. Datasets regenerate from
 `scripts/generate_detector_data.py` (deterministic per seed, resumable); figures
 from `paper/make_figures.py`; validation from `scripts/validate_generator.py`.
 
-## References *(to compile from `references.bib`)*
-Bovy (2014, `streamdf`; 2015, galpy); Sanders, Bovy & Erkal (2016, `streamgapdf`);
-Fardal et al. (2015, `streamspraydf`); Erkal & Belokurov (2015); Bonaca et al.
-(2019); Banik et al. (2021); Carlberg (2012); Price-Whelan & Bonaca (2018);
-Ibata et al. (2021, STREAMFINDER); Mateu (galstreams); Hu et al. (2020, GINEConv);
-Greenberg et al. (2019, SNPE-C); Tejero-Cantero et al. (2020, sbi).
+## References
+Compiled from `references.bib` via `\citep`/`\citet`. Works cited in this version:
+Banik et al. (2021); Bonaca et al. (2019); Bovy (2014, `streamdf`); Bovy (2015,
+`galpy`); Carlberg (2012); Erkal & Belokurov (2015); Fardal et al. (2015,
+`streamspraydf`); Gaia Collaboration (2023, DR3); Hu et al. (2020, GINEConv);
+Ibata et al. (2021, STREAMFINDER); Ludlow et al. (2016); Mateu (2023, `galstreams`);
+Price-Whelan & Bonaca (2018); Sanders, Bovy & Erkal (2016, `streamgapdf`).
