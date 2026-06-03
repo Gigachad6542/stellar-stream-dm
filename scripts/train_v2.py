@@ -237,6 +237,12 @@ def regression_targets_from_labels(
         if n_reg_targets > 2 and labels.shape[1] > 10:
             for col_idx in range(10, min(labels.shape[1], 10 + n_reg_targets - 2)):
                 cols.append(labels[:, col_idx])
+    elif mode == "mass_time":
+        # Characterize impact TYPE: subhalo mass (col 1) + time-since-impact
+        # (col 3). Use for a detect+characterize multi-task model.
+        cols = [labels[:, 1]]
+        if n_reg_targets >= 2:
+            cols.append(labels[:, 3])
     elif mode == "strength_time":
         if labels.shape[1] < 6:
             raise ValueError("strength_time regression requires impact_strength labels")
@@ -1082,7 +1088,7 @@ if __name__ == "__main__":
                         help="Binary head target: DM suppression family, any impact, or morphologically strong impact.")
     parser.add_argument("--label-schema", choices=["compact", "timeline"], default=None,
                         help="Use compact labels or append timeline-aware impact labels.")
-    parser.add_argument("--regression-target", choices=["raw", "timeline_effective", "timeline_detectable", "strength_time"],
+    parser.add_argument("--regression-target", choices=["raw", "timeline_effective", "timeline_detectable", "strength_time", "mass_time"],
                         default=None,
                         help="Auxiliary regression targets for the reg head.")
     parser.add_argument("--strength-threshold", type=float, default=None,
