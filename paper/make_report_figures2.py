@@ -119,8 +119,23 @@ def fig_mass_function():
     save(fig, "fig15_mass_function.png")
 
 
+def fig_detection_vs_strength():
+    # measured completeness vs realised gap strength (detector_completeness.py)
+    edges = ["<0.3", "0.3–0.5", "0.5–0.7", ">0.7"]; p = [0.048, 0.144, 0.803, 1.000]
+    fig, ax = plt.subplots(figsize=(6.0, 4.2))
+    ax.bar(edges, p, color=[C_S, C_S, C_G, C_G], width=0.7)
+    for i, v in enumerate(p):
+        ax.text(i, v + 0.02, f"{v:.2f}", ha="center", fontweight="bold")
+    ax.axhline(0.5, ls=":", color="#999")
+    ax.set_xlabel("realised gap strength (depth)"); ax.set_ylabel("P(detect | impact)")
+    ax.set_title("Figure 16 — Detection is a step function in gap strength")
+    ax.set_ylim(0, 1.1)
+    save(fig, "fig16_detection_vs_strength.png")
+
+
 if __name__ == "__main__":
     import traceback
-    for fn in (fig_detector_vs_N, fig_multistream, fig_erkal_kick, fig_mass_function, fig_stream_tracks):
+    for fn in (fig_detector_vs_N, fig_multistream, fig_erkal_kick, fig_mass_function,
+               fig_stream_tracks, fig_detection_vs_strength):
         try: fn()
         except Exception: print(f"FAILED {fn.__name__}"); traceback.print_exc()

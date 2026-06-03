@@ -110,7 +110,7 @@ stream phase-mixes — a competition central to what is recoverable (§6–§7).
 (dN/dM ∝ M^α, α≈−1.9). WDM suppresses halos below a half-mode mass set by the thermal
 relic mass; FDM below a Jeans/soliton scale set by the axion mass; SIDM leaves the
 *abundance* CDM-like but alters internal structure (cored, lower concentration). These
-differences are **population-level** (Figure 15): they change how many subhalos exist at
+differences are **population-level** (Figure 1): they change how many subhalos exist at
 each mass, not how an individual impact appears.
 
 ![Figure 15](figures/fig15_mass_function.png)
@@ -266,8 +266,17 @@ proper-motion features as the route to extend sensitivity.
 **Figure 10.** Joint completeness over mass × recency: bright = likely detected, dark =
 likely missed.
 
-> **In plain terms.** We reliably catch big, recent hits and miss small or ancient ones;
-> Figure 10 is the "catch-rate map".
+Underlying both trends is a near-threshold response to the *realised* gap depth
+(Figure 11): detection probability jumps from ≈0.05 for shallow gaps (depth < 0.3) to
+≈1.0 for deep ones (> 0.7). Mass and recency matter precisely because they set how deep a
+gap a flyby carves.
+
+![Figure 16](figures/fig16_detection_vs_strength.png)
+**Figure 11.** Detection probability versus realised gap strength — a step function: the
+detector fires once a gap exceeds a depth threshold.
+
+> **In plain terms.** We reliably catch big, recent hits and miss small or ancient ones
+> (Figure 10) — because what really matters is how deep a gap the flyby digs (Figure 11).
 
 ## 7. Characterizing the impact — the single-gap degeneracy
 
@@ -276,14 +285,14 @@ embedding (`scripts/characterize_probe.py`) shows it encodes mass weakly (R²≈
 impact parameter (R²≈0.02) and epoch (R²≈0.04) essentially not at all. More tellingly, a
 *dedicated* multi-task regression head **fails to recover subhalo mass** (test R² < 0)
 and recovers **time-since-impact only weakly** (R² ≈ 0.2, median error ≈ 0.1 dex;
-Figure 11). This is a genuine physical degeneracy — mass, impact parameter, speed, and
+Figure 12). This is a genuine physical degeneracy — mass, impact parameter, speed, and
 epoch trade off in shaping a single gap — so one gap underdetermines them. Recency leaves
 a partial imprint (older gaps are wider/shallower) and is the one property weakly
 constrained; breaking the degeneracy needs more observables or the explicit forward model
 of §10.
 
 ![Figure 8](figures/fig8_characterization.png)
-**Figure 11.** Recovered vs true impact parameters. *(a)* time-since-impact is weakly
+**Figure 12.** Recovered vs true impact parameters. *(a)* time-since-impact is weakly
 recoverable; *(b)* subhalo mass is not.
 
 > **In plain terms.** Many different clumps leave look-alike dents: we can roughly tell
@@ -294,19 +303,19 @@ recoverable; *(b)* subhalo mass is not.
 WDM/FDM/SIDM change how many subhalos exist at each mass, not how a single impact looks.
 DM-model discrimination is therefore a population inference. Combining each model's mass
 function with our *measured* completeness(mass) gives the detected-impact mass
-distribution (Figure 13a) and the number of clean detections to distinguish each model
-from CDM at 95% (Figure 13b): **≈5 for FDM (10⁻²² eV)** (cutoff in our band), **≈12–27
+distribution (Figure 14a) and the number of clean detections to distinguish each model
+from CDM at 95% (Figure 14b): **≈5 for FDM (10⁻²² eV)** (cutoff in our band), **≈12–27
 for WDM (3–6 keV)**, ≈135 for FDM (10⁻²¹ eV), and effectively never for SIDM via the mass
 spectrum (its counts match CDM; it would require the distinct gap *shape* of cored
-halos). Figure 12 shows why: models diverge from CDM only where their cutoff falls inside
+halos). Figure 13 shows why: models diverge from CDM only where their cutoff falls inside
 our sensitive band.
 
 ![Figure 10](figures/fig10_transfer.png)
-**Figure 12.** Mass-function suppression f(M) per DM model relative to our sensitive
+**Figure 13.** Mass-function suppression f(M) per DM model relative to our sensitive
 band.
 
 ![Figure 4](figures/fig4_dm_family.png)
-**Figure 13.** *(a)* Detected-impact mass distributions by DM model. *(b)* Detections
+**Figure 14.** *(a)* Detected-impact mass distributions by DM model. *(b)* Detections
 needed to distinguish each model from CDM.
 
 > **In plain terms.** You need a census of impacts, not a single gap: ≈5 clean detections
@@ -332,7 +341,7 @@ zero-false-positive operating point.
 
 **A member-count floor.** The detector's reliability depends on member count. A controlled
 test — subsampling the real GD-1 catalog — shows p_impact rising spuriously from 0.77 at
-N = 811 to ≈0.99 at N ≤ 100 (Figure 14): with too few stars, Poisson under-sampling
+N = 811 to ≈0.99 at N ≤ 100 (Figure 15): with too few stars, Poisson under-sampling
 produces apparent gaps that the detector reads as impacts. Reliable single-stream verdicts
 therefore require N ≳ 500 clean members. This is *why* only two streams yield trustworthy
 detector verdicts today (GD-1 and ATLAS); the other targets' clean catalogs are currently
@@ -340,12 +349,12 @@ too sparse (46–218 members). It is a data-volume limit, not a methodological o
 sets a concrete requirement for future catalogs.
 
 ![Figure 11](figures/fig11_detector_vs_N.png)
-**Figure 14.** Detector p_impact on real GD-1 versus member count (subsampled). Below
+**Figure 15.** Detector p_impact on real GD-1 versus member count (subsampled). Below
 N ≈ 500, sparse sampling mimics gaps and the score saturates — a reliability floor.
 
 > **In plain terms.** On the two real streams with enough clean stars the detector does
 > exactly the right thing — spots GD-1's gap, stays quiet on ATLAS. With too few stars it
-> gets fooled by random gaps (Figure 14), which is why only two streams qualify so far.
+> gets fooled by random gaps (Figure 15), which is why only two streams qualify so far.
 
 ## 10. The timeline forward model
 
@@ -385,7 +394,7 @@ realization is scored over the entire grid and its maximum retained, so the null
 the same search as the data); per-stream evidence is combined with Stouffer's Z and
 Fisher's method, **gated by a coherence requirement**.
 
-The look-elsewhere correction is decisive (Figure 15): naive single-cell significances as
+The look-elsewhere correction is decisive (Figure 16): naive single-cell significances as
 large as 19σ (Sylgr) and 12σ (Pal 5) collapse to ≈ ±2σ once the search is accounted for.
 Per-stream corrected evidence is modest and mixed in sign (Table 3); the joint result is
 **null** — Stouffer Z = 1.40 (p = 0.08), Fisher χ² ⇒ p = 0.28, with the coherence gate not
@@ -400,7 +409,7 @@ result: unaccounted-for trials manufacture many-sigma "signals" from noise.
 | z (LE) | +0.4 | +2.2 | +2.7 | +1.1 | +1.0 | −2.5 | −1.3 |
 
 ![Figure 12](figures/fig12_multistream.png)
-**Figure 15.** No coherent detection across seven streams. Naive per-stream significance
+**Figure 16.** No coherent detection across seven streams. Naive per-stream significance
 (grey) collapses under the look-elsewhere correction (blue); the joint significance is
 null (Stouffer Z = 1.40, Fisher p = 0.28).
 
