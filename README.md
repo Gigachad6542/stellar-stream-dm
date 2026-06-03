@@ -5,9 +5,11 @@ dark-matter subhalo flybys in thin Milky Way stellar streams (Gaia DR3), using a
 validated stream simulator, a graph-neural-network (GNN) detector, and a
 characterization/forward-model layer.
 
-**The paper** (current state, with figures) lives in [`paper/`](paper/):
-read [`paper/manuscript.md`](paper/manuscript.md) or the rendered
-[`paper/manuscript.pdf`](paper/manuscript.pdf).
+**Read the report** (in [`paper/`](paper/)):
+- [`paper/full_report.pdf`](paper/full_report.pdf) — the comprehensive technical
+  report (14 pp, 10 figures); source [`full_report.md`](paper/full_report.md).
+- [`paper/manuscript.pdf`](paper/manuscript.pdf) — the condensed paper (9 pp);
+  source [`manuscript.md`](paper/manuscript.md).
 
 ## What it does, and what it finds
 

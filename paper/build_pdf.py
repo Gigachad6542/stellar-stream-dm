@@ -11,6 +11,7 @@ Pure-Python (markdown + xhtml2pdf/reportlab) so it works without pandoc/LaTeX.
 from __future__ import annotations
 import os
 import re
+import sys
 from pathlib import Path
 
 import matplotlib
@@ -20,9 +21,10 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
 HERE = Path(__file__).resolve().parent
-MD = HERE / "manuscript.md"
+# Selectable I/O:  python build_pdf.py [input.md] [output.pdf]
+MD = HERE / (sys.argv[1] if len(sys.argv) > 1 else "manuscript.md")
+OUT = HERE / (sys.argv[2] if len(sys.argv) > 2 else MD.with_suffix(".pdf").name)
 BIB = HERE / "references.bib"
-OUT = HERE / "manuscript.pdf"
 FONTDIR = Path(matplotlib.__file__).parent / "mpl-data" / "fonts" / "ttf"
 
 
