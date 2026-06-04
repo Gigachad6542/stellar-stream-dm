@@ -29,7 +29,8 @@ notes (blockquotes) accompany the full technical text; specialists may skip them
 > clump that made it — only roughly *how recently* it struck. The detector also needs
 > enough stars: with too few, random sparseness mimics a gap. And deciding *which kind*
 > of dark matter we live in is a population question, not a one-gap question — it needs
-> roughly 5–30 clean detections. We then take a second tool — a "replay" that rewinds a
+> a population of clean detections (as few as about two for the most favorable theories,
+> and many more for the rest). We then take a second tool — a "replay" that rewinds a
 > real stream, drops in a simulated clump, and checks the match — and apply it to the
 > real streams, combining seven of them. The result, with the statistics done carefully,
 > is **no convincing detection**: fully consistent with standard cold dark matter, and
@@ -57,7 +58,7 @@ detectable impacts are rare (baseline λ_det≈0.026 per stream), ≈300–365 s
 to collect them in the floor-normalized forecast; removing the low-rate floor raises this
 to ≈1,160–1,370 streams — while SIDM
 (identical abundance and mass function to CDM) is separable only through its shallower
-cored-subhalo gaps, with separability depending on core strength (mean AUC ≈0.54, 0.75,
+cored-subhalo gaps, with separability depending on core strength (matched-mass gap-depth AUC ≈0.55,
 0.68, 0.82, and 0.84 for 1.25×, 2×, 3×, and 5× the NFW scale radius). On real data the detector is in-distribution
 and behaves correctly (flags GD-1's gap, nulls ATLAS), and we document a member-count floor
 (N≳500) below which sparse sampling mimics gaps. The timeline forward model recovers injected impacts exactly
@@ -320,8 +321,7 @@ looks, so DM-model discrimination is a population inference. Two population obse
 carry the signal: the **abundance** of detectable impacts and their **mass distribution**
 (Figure 13 shows why models diverge from CDM only where their cutoff lies in our band).
 
-**Abundance is the dominant lever** — and the one our earlier estimate discarded by using
-only the normalized mass shape. WDM/FDM suppress low-mass subhalos, lowering the
+**Abundance is the dominant lever** — and the one a mass-shape-only estimate discards. WDM/FDM suppress low-mass subhalos, lowering the
 detectable-impact rate per stream relative to CDM (Figure 15a): to 0.24 (WDM 3 keV), 0.49
 (WDM 4 keV), 0.88 (WDM 6 keV), and 0.26 (FDM 10⁻²² eV), while FDM 10⁻²¹ eV and SIDM match
 CDM. The detected-mass distribution (Figure 14) adds shape information.
@@ -631,8 +631,10 @@ A public repository with a conda environment specification, 330 passing unit tes
 `scripts/` index, and a dated decision log (`changelog/`). Datasets regenerate
 deterministically from `scripts/generate_detector_data.py` (per-seed, resumable); clean
 catalogs from `scripts/fetch_streamfinder_streams.py`; figures from `paper/make_figures.py`,
-`make_report_figures.py`, and `make_report_figures2.py`; the validation harness from
-`scripts/validate_generator.py`; and this report's PDF from `paper/build_pdf.py`. Every
+`make_report_figures.py`, `make_report_figures2.py`, and `make_fig20_profile_validation.py`;
+the validation harness from `scripts/validate_generator.py` and the profile-identifiability
+screen from `scripts/run_gd1_streamgapdf_injection_recovery.py`; and this report's PDF from
+`paper/build_pdf.py`. Every
 quantitative claim is traced to its source artifact in `paper/claims_audit.md`.
 
 ## 14. Conclusions and outlook

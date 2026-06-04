@@ -32,8 +32,8 @@ specialist reader may skip the former without loss of rigor.*
 > the exact mass of the dark clump from a single gap is essentially impossible (many
 > different clumps leave look-alike gaps), though we can estimate roughly *how
 > recently* it struck. And telling apart *kinds* of dark matter requires not one
-> detection but a whole population of them — roughly 5–30 clean detections for the
-> most favorable theories. We also describe two further tools (a "replay" model that
+> detection but a whole population of them — as few as about two clean detections for
+> the most favorable theories, and many more for the rest. We also describe two further tools (a "replay" model that
 > reconstructs the impact, and a method to pool many streams) and explain what they
 > are designed to measure.
 
