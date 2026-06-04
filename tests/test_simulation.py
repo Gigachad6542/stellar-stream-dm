@@ -469,12 +469,12 @@ class TestSubhaloImpulse:
             r = scale_radius_from_mass(m)
             assert r > 0, f"Scale radius must be positive, got {r} for M={m}"
 
-    def test_scale_radius_sidm_smaller(self):
-        """SIDM cored profile should give smaller effective scale radius."""
+    def test_scale_radius_sidm_broader(self):
+        """SIDM cored profile should give a broader effective scale radius."""
         from src.simulation.subhalo import scale_radius_from_mass
         r_nfw = scale_radius_from_mass(1e8, "NFW")
         r_sidm = scale_radius_from_mass(1e8, "isothermal_core_NFW")
-        assert r_sidm < r_nfw, "SIDM scale radius should be smaller than NFW"
+        assert r_sidm > r_nfw, "SIDM scale radius should be broader than NFW"
 
     def test_encounter_params_kick_capped_field(self):
         """EncounterParams should have a kick_capped field."""
@@ -566,6 +566,34 @@ class TestEncounterSampling:
         assert enc.flyby_vel_kms > 0
         assert enc.t_since_impact_gyr > 0
         assert stream_config["phi1_range_deg"][0] <= enc.encounter_phi1 <= stream_config["phi1_range_deg"][1]
+
+
+def test_streamdf_generator_exposes_tidal_arm_choice():
+    """Real-stream profile checks must be able to model either tidal arm."""
+    import inspect
+
+    from src.simulation.stream_gen import generate_stream_df
+
+    assert "leading" in inspect.signature(generate_stream_df).parameters
+
+
+def test_streamdf_impact_angle_sign_follows_tidal_arm():
+    from src.simulation.stream_gen import impact_params_for_arm
+
+    params = {"impact_angle_rad": 0.4, "mass": 1e8}
+    assert impact_params_for_arm(params, leading=True)["impact_angle_rad"] == 0.4
+    assert impact_params_for_arm(params, leading=False)["impact_angle_rad"] == -0.4
+    assert params["impact_angle_rad"] == 0.4
+
+
+def test_combine_stream_particles_concatenates_phase_space():
+    from src.simulation.stream_gen import combine_stream_particles
+
+    first = _make_fake_stream(n=3)
+    second = _make_fake_stream(n=5)
+    combined = combine_stream_particles(first, second)
+    assert len(combined.phi1) == 8
+    assert combined.xyz_kpc.shape == (3, 8)
 
 
 # ---------------------------------------------------------------------------

@@ -33,6 +33,7 @@ import h5py
 import numpy as np
 import yaml
 
+from ..data.galstreams_compat import make_mwstreams
 from ..simulation.potentials import get_mw_potential
 from ..simulation.stream_gen import StreamParticles, generate_stream
 from ..simulation.subhalo import (
@@ -54,6 +55,21 @@ from .scoring import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def observed_density_weights(particles: dict) -> Optional[np.ndarray]:
+    """Return the best available weights for observed density-profile scoring."""
+    return particles.get("selection_weight", particles.get("membership_prob"))
+
+
+def observed_gap_detection_weights(particles: dict) -> Optional[np.ndarray]:
+    """Use unweighted thresholded stars for approximate Poisson gap tests.
+
+    Membership and selection probabilities are valuable density estimators, but
+    their fractional sums do not follow the raw-count Poisson variance assumed
+    by ``detect_gaps``.
+    """
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -80,13 +96,11 @@ def _worker_init(
     Each worker creates its own galpy potential and galstreams instance
     (these are not pickle-safe). Observed data is shared via serialised dicts.
     """
-    import galstreams
-
     _worker_state["stream_name"] = stream_name
     _worker_state["config_path"] = config_path
     _worker_state["use_fast_mode"] = use_fast_mode
     _worker_state["potential"] = get_mw_potential(config_path)
-    _worker_state["mws"] = galstreams.MWStreams(verbose=False)
+    _worker_state["mws"] = make_mwstreams(verbose=False)
     _worker_state["phi1_range"] = phi1_range
     # Convert lists back to numpy arrays
     _worker_state["obs_particles"] = {k: np.array(v) for k, v in obs_particles.items()}
@@ -195,6 +209,8 @@ def _worker_evaluate(params: dict) -> dict:
         kinematic_bin_width=cfg["kinematic_bin_width_deg"],
         sim_vrad=perturbed.vrad,
         obs_vrad=obs.get("vrad"),
+        obs_vrad_error=obs.get("e_vrad"),
+        obs_vrad_weight=obs.get("desi_p_thin", obs.get("membership_prob")),
     )
 
     elapsed = time.perf_counter() - t0
@@ -276,8 +292,9 @@ class ForwardModelConfig:
     base_seed: int = 42
 
     # Observation filtering
-    phi2_cut_deg: float = 1.0         # half-width in phi2 to select stream stars
+    phi2_cut_deg: Optional[float] = 1.0  # half-width in phi2; None disables the cut
     membership_prob_min: float = 0.5  # minimum membership probability
+    apply_pm_cuts: bool = True        # disable for trusted external member catalogs
 
     # Scoring
     density_bin_width_deg: float = 1.0
@@ -485,14 +502,24 @@ class TimelineForwardModel:
             obs_phi1,
             self.phi1_range,
             bin_width_deg=self.cfg.density_bin_width_deg,
-            weights=self.obs_particles.get("membership_prob"),
+            weights=observed_density_weights(self.obs_particles),
         )
         log.info("  Observed profile: %d bins, %d total stars",
                  self.obs_profile.n_bins, int(self.obs_profile.counts.sum()))
 
-        # Detect gaps in observed data
+        # Detect gaps using raw selected counts rather than fractional
+        # background-correction weights, whose Poisson variance is not encoded
+        # by ``DensityProfile.counts``.
+        gap_profile = self.obs_profile
+        if "selection_weight" in self.obs_particles:
+            gap_profile = compute_density_profile(
+                obs_phi1,
+                self.phi1_range,
+                bin_width_deg=self.cfg.density_bin_width_deg,
+                weights=observed_gap_detection_weights(self.obs_particles),
+            )
         self.obs_gaps = detect_gaps(
-            self.obs_profile,
+            gap_profile,
             min_depth=self.cfg.gap_detection_min_depth,
             min_significance=self.cfg.gap_detection_min_significance,
         )
@@ -542,9 +569,14 @@ class TimelineForwardModel:
         """Load real stream members from the processed HDF5 with quality filtering.
 
         Applies:
-            - phi2 cut: keep only stars within phi2_cut_deg of the stream track
+            - optional phi2 cut: keep only stars within phi2_cut_deg of phi2=0
             - membership probability cut: keep stars above membership_prob_min
-            - PM range cut: use stream config pm1/pm2 ranges to reject outliers
+            - optional PM range cut: use stream config pm1/pm2 ranges to reject outliers
+
+        Trusted external membership catalogs can set ``phi2_cut_deg=None`` and
+        ``apply_pm_cuts=False``. Re-applying rectangular astrometric cuts to an
+        already-selected stream catalog can create artificial density features
+        when the stream track or proper-motion track crosses a cut boundary.
         """
         h5_path = Path(self.cfg.processed_h5_path)
         if not h5_path.exists():
@@ -566,31 +598,49 @@ class TimelineForwardModel:
             }
             if "membership_prob" in grp:
                 raw["membership_prob"] = grp["membership_prob"][:].astype(np.float64)
+            if "selection_weight" in grp:
+                raw["selection_weight"] = grp["selection_weight"][:].astype(np.float64)
             # Real per-star measurement errors (used by the detector to impute /
             # weight features accurately instead of fabricated constants).
             for ecol in ("e_dist", "e_pm1", "e_pm2", "e_vrad"):
                 if ecol in grp:
                     raw[ecol] = grp[ecol][:].astype(np.float64)
+            # Optional component probabilities and track-relative residuals from
+            # fused spectroscopic catalogs. These remain separate from the
+            # published spatial selection and are used only by compatible
+            # likelihood terms.
+            for column in (
+                "desi_p_thin",
+                "desi_p_cocoon",
+                "desi_delta_phi2",
+                "desi_delta_vgsr",
+            ):
+                if column in grp:
+                    raw[column] = grp[column][:].astype(np.float64)
 
         n_raw = len(raw["phi1"])
 
         # Build quality mask
         mask = np.ones(n_raw, dtype=bool)
 
-        # phi2 cut: keep stars close to the stream track
-        mask &= np.abs(raw["phi2"]) < self.cfg.phi2_cut_deg
+        # Optional phi2 cut. This is a rectangular cut around phi2=0, not a
+        # fitted track-relative cut, so trusted membership catalogs should
+        # normally disable it.
+        if self.cfg.phi2_cut_deg is not None:
+            mask &= np.abs(raw["phi2"]) < self.cfg.phi2_cut_deg
 
         # Membership probability cut
         if "membership_prob" in raw:
             mask &= raw["membership_prob"] >= self.cfg.membership_prob_min
 
         # PM range cut from stream config (reject background stars with wrong PMs)
-        pm1_range = self.stream_config.get("pm1_range_masyr")
-        pm2_range = self.stream_config.get("pm2_range_masyr")
-        if pm1_range is not None:
-            mask &= (raw["pm1"] >= pm1_range[0]) & (raw["pm1"] <= pm1_range[1])
-        if pm2_range is not None:
-            mask &= (raw["pm2"] >= pm2_range[0]) & (raw["pm2"] <= pm2_range[1])
+        if self.cfg.apply_pm_cuts:
+            pm1_range = self.stream_config.get("pm1_range_masyr")
+            pm2_range = self.stream_config.get("pm2_range_masyr")
+            if pm1_range is not None:
+                mask &= (raw["pm1"] >= pm1_range[0]) & (raw["pm1"] <= pm1_range[1])
+            if pm2_range is not None:
+                mask &= (raw["pm2"] >= pm2_range[0]) & (raw["pm2"] <= pm2_range[1])
 
         # Apply mask
         self.obs_particles = {k: v[mask] for k, v in raw.items()}
@@ -598,14 +648,17 @@ class TimelineForwardModel:
         n_filtered = int(mask.sum())
         log.info("  Loaded %d observed members from %s (%d raw -> %d after filtering)",
                  n_filtered, h5_path, n_raw, n_filtered)
-        log.info("    Filters: |phi2| < %.1f deg, membership >= %.2f, PM cuts",
-                 self.cfg.phi2_cut_deg, self.cfg.membership_prob_min)
+        phi2_desc = (
+            f"|phi2| < {self.cfg.phi2_cut_deg:.1f} deg"
+            if self.cfg.phi2_cut_deg is not None else "phi2 cut disabled"
+        )
+        log.info("    Filters: %s, membership >= %.2f, PM cuts=%s",
+                 phi2_desc, self.cfg.membership_prob_min, self.cfg.apply_pm_cuts)
 
     def _generate_base_stream(self, seed: Optional[int] = None) -> StreamParticles:
         """Generate one unperturbed stream simulation as the encounter substrate."""
         if self._mws is None:
-            import galstreams
-            self._mws = galstreams.MWStreams(verbose=False)
+            self._mws = make_mwstreams(verbose=False)
 
         return generate_stream(
             stream_name=self.cfg.stream_name,
@@ -616,31 +669,81 @@ class TimelineForwardModel:
             mws=self._mws,
         )
 
-    def _score_stream_vs_obs(self, stream: StreamParticles) -> ScoreResult:
-        """Score any simulated stream against the observed data (density+gap+kin+RV)."""
+    def _score_stream_vs_obs(
+        self,
+        stream: StreamParticles,
+        phi1_range: Optional[tuple[float, float]] = None,
+    ) -> ScoreResult:
+        """Score any simulated stream against the observed data.
+
+        ``phi1_range`` can restrict the likelihood to a local encounter window.
+        This is essential for individual-perturber density-profile inference:
+        unrelated gaps and broad stream-envelope mismatches elsewhere in the
+        catalog must not determine the preferred perturber compactness.
+        """
+        score_range = self.phi1_range if phi1_range is None else phi1_range
         sim_profile = compute_density_profile(
-            stream.phi1, self.phi1_range, bin_width_deg=self.cfg.density_bin_width_deg,
+            stream.phi1, score_range, bin_width_deg=self.cfg.density_bin_width_deg,
         )
         sim_gaps = detect_gaps(
             sim_profile, min_depth=self.cfg.gap_detection_min_depth,
             min_significance=self.cfg.gap_detection_min_significance,
         )
+        if phi1_range is None:
+            obs_profile = self.obs_profile
+            obs_gaps = self.obs_gaps
+        else:
+            obs_profile = compute_density_profile(
+                self.obs_particles["phi1"],
+                score_range,
+                bin_width_deg=self.cfg.density_bin_width_deg,
+                weights=observed_density_weights(self.obs_particles),
+            )
+            gap_profile = obs_profile
+            if "selection_weight" in self.obs_particles:
+                gap_profile = compute_density_profile(
+                    self.obs_particles["phi1"],
+                    score_range,
+                    bin_width_deg=self.cfg.density_bin_width_deg,
+                    weights=observed_gap_detection_weights(self.obs_particles),
+                )
+            obs_gaps = detect_gaps(
+                gap_profile,
+                min_depth=self.cfg.gap_detection_min_depth,
+                min_significance=self.cfg.gap_detection_min_significance,
+            )
         return combined_score(
             sim_profile=sim_profile,
-            obs_profile=self.obs_profile,
+            obs_profile=obs_profile,
             sim_gaps=sim_gaps,
-            obs_gaps=self.obs_gaps,
+            obs_gaps=obs_gaps,
             sim_phi1=stream.phi1, sim_pm1=stream.pm1, sim_pm2=stream.pm2,
             obs_phi1=self.obs_particles["phi1"],
             obs_pm1=self.obs_particles["pm1"],
             obs_pm2=self.obs_particles["pm2"],
-            phi1_range=self.phi1_range,
+            phi1_range=score_range,
             weights=self.cfg.score_weights,
             density_bin_width=self.cfg.density_bin_width_deg,
             kinematic_bin_width=self.cfg.kinematic_bin_width_deg,
             sim_vrad=stream.vrad,
             obs_vrad=self.obs_particles.get("vrad"),
+            obs_vrad_error=self.obs_particles.get("e_vrad"),
+            obs_vrad_weight=self.obs_particles.get(
+                "desi_p_thin", self.obs_particles.get("membership_prob")
+            ),
         )
+
+    def evaluate_null_window(self, center_phi1: float, half_width_deg: float) -> ScoreResult:
+        """Score the unperturbed baseline in a local window around one event."""
+        if half_width_deg <= 0:
+            raise ValueError("half_width_deg must be positive")
+        score_range = (
+            max(self.phi1_range[0], float(center_phi1) - float(half_width_deg)),
+            min(self.phi1_range[1], float(center_phi1) + float(half_width_deg)),
+        )
+        if score_range[1] <= score_range[0]:
+            raise ValueError(f"Local score window does not overlap observed data: {score_range}")
+        return self._score_stream_vs_obs(self.base_stream, phi1_range=score_range)
 
     def build_null_distribution(
         self, n_realizations: int = 20, seed0: int = 1000,
@@ -776,7 +879,7 @@ class TimelineForwardModel:
         # Smooth the observed density into a gap-free envelope to sample phi1 from.
         prof = compute_density_profile(
             obs0["phi1"], self.phi1_range, bin_width_deg=self.cfg.density_bin_width_deg,
-            weights=obs0.get("membership_prob"))
+            weights=observed_density_weights(obs0))
         bw = prof.bin_width_deg
         smooth = gaussian_filter1d(prof.counts.astype(float),
                                    sigma=max(smooth_deg / max(bw, 1e-6), 1.0), mode="nearest")
@@ -863,6 +966,10 @@ class TimelineForwardModel:
             kinematic_bin_width=self.cfg.kinematic_bin_width_deg,
             sim_vrad=self.base_stream.vrad,
             obs_vrad=self.obs_particles.get("vrad"),
+            obs_vrad_error=self.obs_particles.get("e_vrad"),
+            obs_vrad_weight=self.obs_particles.get(
+                "desi_p_thin", self.obs_particles.get("membership_prob")
+            ),
         )
 
         # Add GNN profile distance if available
@@ -925,7 +1032,14 @@ class TimelineForwardModel:
         drift formula instead of real orbit integration.
 
         Args:
-            params: dict with keys log10_mass, t_since_gyr, impact_phi1.
+            params: dict with required keys ``log10_mass``, ``t_since_gyr``,
+                and ``impact_phi1``. Optional keys ``scale_radius_factor`` or
+                ``scale_radius_kpc`` vary perturber compactness independently
+                of mass. Optional ``impact_param_kpc`` and ``flyby_vel_kms``
+                vary encounter geometry. ``scale_radius_factor`` is relative
+                to the standard NFW/Hernquist-equivalent radius at that mass.
+                Optional ``score_half_window_deg`` restricts the likelihood to
+                a local window around ``impact_phi1``.
 
         Returns:
             CandidateResult with all scores populated.
@@ -936,14 +1050,26 @@ class TimelineForwardModel:
         t_since = params["t_since_gyr"]
         phi1_enc = params["impact_phi1"]
         mass = 10.0 ** log10_m
-        a_kpc = scale_radius_from_mass(mass)
+        a_nfw_kpc = scale_radius_from_mass(mass)
+        if "scale_radius_kpc" in params and "scale_radius_factor" in params:
+            raise ValueError("Specify only one of scale_radius_kpc and scale_radius_factor")
+        if "scale_radius_kpc" in params:
+            a_kpc = float(params["scale_radius_kpc"])
+        else:
+            a_kpc = a_nfw_kpc * float(params.get("scale_radius_factor", 1.0))
+        impact_param_kpc = float(params.get("impact_param_kpc", self.cfg.impact_param_kpc))
+        flyby_vel_kms = float(params.get("flyby_vel_kms", self.cfg.flyby_vel_kms))
+        if a_kpc <= 0 or impact_param_kpc <= 0 or flyby_vel_kms <= 0:
+            raise ValueError(
+                "scale radius, impact parameter, and flyby velocity must all be positive"
+            )
 
         # Build forced encounter
         encounter = EncounterParams(
             mass_solar=mass,
             scale_radius_kpc=a_kpc,
-            impact_param_kpc=self.cfg.impact_param_kpc,
-            flyby_vel_kms=self.cfg.flyby_vel_kms,
+            impact_param_kpc=impact_param_kpc,
+            flyby_vel_kms=flyby_vel_kms,
             encounter_phi1=phi1_enc,
             t_since_impact_gyr=t_since,
             is_valid=True,
@@ -960,8 +1086,7 @@ class TimelineForwardModel:
             # Each candidate generates a fresh perturbed stream from scratch.
             # This is expensive but physically correct.
             if self._mws is None:
-                import galstreams
-                self._mws = galstreams.MWStreams(verbose=False)
+                self._mws = make_mwstreams(verbose=False)
 
             perturbed = generate_perturbed_stream_evolved(
                 stream_name=self.cfg.stream_name,
@@ -973,10 +1098,45 @@ class TimelineForwardModel:
                 mws=self._mws,
             )
 
-        # Compute simulated density profile (same phi1_range as observed)
+        score_half_window = params.get("score_half_window_deg")
+        if score_half_window is None:
+            score_range = self.phi1_range
+            obs_profile = self.obs_profile
+            obs_gaps = self.obs_gaps
+        else:
+            score_half_window = float(score_half_window)
+            if score_half_window <= 0:
+                raise ValueError("score_half_window_deg must be positive")
+            score_range = (
+                max(self.phi1_range[0], phi1_enc - score_half_window),
+                min(self.phi1_range[1], phi1_enc + score_half_window),
+            )
+            if score_range[1] <= score_range[0]:
+                raise ValueError(f"Local score window does not overlap observed data: {score_range}")
+            obs_profile = compute_density_profile(
+                self.obs_particles["phi1"],
+                score_range,
+                bin_width_deg=self.cfg.density_bin_width_deg,
+                weights=observed_density_weights(self.obs_particles),
+            )
+            gap_profile = obs_profile
+            if "selection_weight" in self.obs_particles:
+                gap_profile = compute_density_profile(
+                    self.obs_particles["phi1"],
+                    score_range,
+                    bin_width_deg=self.cfg.density_bin_width_deg,
+                    weights=observed_gap_detection_weights(self.obs_particles),
+                )
+            obs_gaps = detect_gaps(
+                gap_profile,
+                min_depth=self.cfg.gap_detection_min_depth,
+                min_significance=self.cfg.gap_detection_min_significance,
+            )
+
+        # Compute simulated density profile in the same global/local range.
         sim_profile = compute_density_profile(
             perturbed.phi1,
-            self.phi1_range,
+            score_range,
             bin_width_deg=self.cfg.density_bin_width_deg,
         )
 
@@ -990,21 +1150,25 @@ class TimelineForwardModel:
         # Score
         score = combined_score(
             sim_profile=sim_profile,
-            obs_profile=self.obs_profile,
+            obs_profile=obs_profile,
             sim_gaps=sim_gaps,
-            obs_gaps=self.obs_gaps,
+            obs_gaps=obs_gaps,
             sim_phi1=perturbed.phi1,
             sim_pm1=perturbed.pm1,
             sim_pm2=perturbed.pm2,
             obs_phi1=self.obs_particles["phi1"],
             obs_pm1=self.obs_particles["pm1"],
             obs_pm2=self.obs_particles["pm2"],
-            phi1_range=self.phi1_range,
+            phi1_range=score_range,
             weights=self.cfg.score_weights,
             density_bin_width=self.cfg.density_bin_width_deg,
             kinematic_bin_width=self.cfg.kinematic_bin_width_deg,
             sim_vrad=perturbed.vrad,
             obs_vrad=self.obs_particles.get("vrad"),
+            obs_vrad_error=self.obs_particles.get("e_vrad"),
+            obs_vrad_weight=self.obs_particles.get(
+                "desi_p_thin", self.obs_particles.get("membership_prob")
+            ),
         )
 
         # GNN profile distance (if scorer available)
@@ -1027,8 +1191,8 @@ class TimelineForwardModel:
             log10_mass=log10_m,
             t_since_gyr=t_since,
             impact_phi1=phi1_enc,
-            flyby_vel_kms=self.cfg.flyby_vel_kms,
-            impact_param_kpc=self.cfg.impact_param_kpc,
+            flyby_vel_kms=flyby_vel_kms,
+            impact_param_kpc=impact_param_kpc,
             scale_radius_kpc=a_kpc,
             score=score,
             n_stars_sim=len(perturbed.phi1),
@@ -1583,8 +1747,7 @@ class TimelineForwardModel:
                 perturbed = apply_impulse_approximation(self.base_stream, encounter)
             else:
                 if self._mws is None:
-                    import galstreams
-                    self._mws = galstreams.MWStreams(verbose=False)
+                    self._mws = make_mwstreams(verbose=False)
                 perturbed = generate_perturbed_stream_evolved(
                     stream_name=self.cfg.stream_name,
                     potential=self.potential,
@@ -1595,10 +1758,9 @@ class TimelineForwardModel:
                     mws=self._mws,
                 )
 
-            # Apply kick suppression from the density profile
-            # Cored profiles (FDM, SIDM) produce weaker kicks than NFW —
-            # we model this by scaling the kinematic perturbation component.
-            kick_supp = profile["kick_suppression"]
+            # The profile-specific scale radius above is what changes the
+            # impulse shape.  ``kick_suppression`` remains metadata/a diagnostic
+            # for profile compactness; it is not applied a second time here.
 
             # Score
             sim_profile = compute_density_profile(
@@ -1628,6 +1790,10 @@ class TimelineForwardModel:
                 kinematic_bin_width=self.cfg.kinematic_bin_width_deg,
                 sim_vrad=perturbed.vrad,
                 obs_vrad=self.obs_particles.get("vrad"),
+                obs_vrad_error=self.obs_particles.get("e_vrad"),
+                obs_vrad_weight=self.obs_particles.get(
+                    "desi_p_thin", self.obs_particles.get("membership_prob")
+                ),
             )
 
             # GNN profile distance
@@ -1823,7 +1989,19 @@ class TimelineForwardModel:
         encounter_dicts = []
         for ep in encounter_params_list:
             mass = 10.0 ** ep["log10_mass"]
-            a_kpc = scale_radius_from_mass(mass)
+            a_nfw_kpc = scale_radius_from_mass(mass)
+            if "scale_radius_kpc" in ep and "scale_radius_factor" in ep:
+                raise ValueError(
+                    "Specify only one of scale_radius_kpc and scale_radius_factor per encounter"
+                )
+            if "scale_radius_kpc" in ep:
+                a_kpc = float(ep["scale_radius_kpc"])
+                scale_factor = a_kpc / a_nfw_kpc
+            else:
+                scale_factor = float(ep.get("scale_radius_factor", 1.0))
+                a_kpc = a_nfw_kpc * scale_factor
+            if a_kpc <= 0:
+                raise ValueError("scale radius must be positive")
             enc = EncounterParams(
                 mass_solar=mass,
                 scale_radius_kpc=a_kpc,
@@ -1842,6 +2020,7 @@ class TimelineForwardModel:
                 "flyby_vel_kms": enc.flyby_vel_kms,
                 "impact_param_kpc": enc.impact_param_kpc,
                 "scale_radius_kpc": a_kpc,
+                "scale_radius_factor": scale_factor,
             })
 
         if self.cfg.use_fast_mode:
@@ -1858,8 +2037,7 @@ class TimelineForwardModel:
         else:
             # Full orbit mode: orbit-integrated multi-encounter evolution
             if self._mws is None:
-                import galstreams
-                self._mws = galstreams.MWStreams(verbose=False)
+                self._mws = make_mwstreams(verbose=False)
 
             perturbed = generate_perturbed_stream_multi_evolved(
                 stream_name=self.cfg.stream_name,
@@ -1901,6 +2079,10 @@ class TimelineForwardModel:
             kinematic_bin_width=self.cfg.kinematic_bin_width_deg,
             sim_vrad=perturbed.vrad,
             obs_vrad=self.obs_particles.get("vrad"),
+            obs_vrad_error=self.obs_particles.get("e_vrad"),
+            obs_vrad_weight=self.obs_particles.get(
+                "desi_p_thin", self.obs_particles.get("membership_prob")
+            ),
         )
 
         # GNN profile distance

@@ -89,6 +89,27 @@ class TestGapDetection:
         assert len(gaps) >= 1
         assert gaps[0].depth > 0.5  # Should be a deep gap
 
+    def test_gap_significance_uses_fractional_poisson_uncertainty(self):
+        counts = np.array([100.0, 100.0, 100.0, 25.0, 100.0, 100.0, 100.0])
+        edges = np.arange(8, dtype=float)
+        profile = DensityProfile(
+            bin_centers=0.5 * (edges[:-1] + edges[1:]),
+            bin_edges=edges,
+            counts=counts,
+            density=counts / counts.sum(),
+            bin_width_deg=1.0,
+        )
+
+        gaps = detect_gaps(
+            profile,
+            min_depth=0.5,
+            min_significance=1.0,
+            smooth_sigma_bins=0.1,
+        )
+
+        assert len(gaps) == 1
+        assert gaps[0].significance == pytest.approx(15.0, rel=0.05)
+
 
 # ---------------------------------------------------------------------------
 # Individual scorer tests
@@ -224,6 +245,119 @@ class TestForwardModelIntegration:
         # Should be JSON-serializable
         s = json.dumps(d)
         assert "7.0" in s or "7" in s
+
+    def test_candidate_accepts_continuous_profile_and_geometry(self, monkeypatch):
+        """Profile grids can vary compactness independently of perturber mass."""
+        from src.forward_model import pipeline
+        from src.forward_model.pipeline import ForwardModelConfig, TimelineForwardModel
+
+        rng = np.random.default_rng(7)
+        n = 500
+        stream = StreamParticles(
+            phi1=rng.uniform(-20, 20, n),
+            phi2=rng.normal(0, 0.2, n),
+            dist=np.full(n, 8.5),
+            pm1=rng.normal(-8.0, 0.1, n),
+            pm2=rng.normal(0.0, 0.1, n),
+            vrad=np.full(n, np.nan),
+            xyz_kpc=np.zeros((3, n)),
+            vxyz_kms=np.zeros((3, n)),
+        )
+        captured = {}
+
+        def fake_apply(base, encounter):
+            captured["encounter"] = encounter
+            return base
+
+        monkeypatch.setattr(pipeline, "apply_impulse_approximation", fake_apply)
+        model = TimelineForwardModel(
+            ForwardModelConfig(use_fast_mode=True, use_gnn_scorer=False)
+        )
+        model.base_stream = stream
+        model.phi1_range = (-20.0, 20.0)
+        model.obs_particles = {
+            "phi1": stream.phi1,
+            "phi2": stream.phi2,
+            "pm1": stream.pm1,
+            "pm2": stream.pm2,
+            "vrad": stream.vrad,
+        }
+        model.obs_profile = compute_density_profile(stream.phi1, model.phi1_range)
+        model.obs_gaps = []
+
+        result = model.evaluate_candidate(
+            {
+                "log10_mass": 7.0,
+                "t_since_gyr": 1.5,
+                "impact_phi1": 3.0,
+                "scale_radius_factor": 3.0,
+                "impact_param_kpc": 0.2,
+                "flyby_vel_kms": 150.0,
+            }
+        )
+        encounter = captured["encounter"]
+        assert encounter.scale_radius_kpc == pytest.approx(3.0 * scale_radius_from_mass(1e7))
+        assert encounter.impact_param_kpc == pytest.approx(0.2)
+        assert encounter.flyby_vel_kms == pytest.approx(150.0)
+        assert result.scale_radius_kpc == pytest.approx(encounter.scale_radius_kpc)
+        assert result.impact_param_kpc == pytest.approx(0.2)
+        assert result.flyby_vel_kms == pytest.approx(150.0)
+
+    def test_trusted_catalog_selection_can_disable_rectangular_cuts(self, tmp_path):
+        """Already-clean external catalogs should not be recut by default logic."""
+        import h5py
+
+        from src.forward_model.pipeline import ForwardModelConfig, TimelineForwardModel
+
+        path = tmp_path / "trusted.h5"
+        columns = {
+            "phi1": [0.0, 1.0, 2.0],
+            "phi2": [0.0, 2.0, 0.0],
+            "pm1": [0.0, 0.0, 5.0],
+            "pm2": [0.0, 0.0, 0.0],
+            "dist": [8.0, 8.0, 8.0],
+            "vrad": [np.nan, np.nan, np.nan],
+            "membership_prob": [1.0, 1.0, 1.0],
+            "selection_weight": [0.2, 0.5, 0.8],
+            "desi_p_thin": [0.9, 0.8, 0.7],
+            "desi_p_cocoon": [0.1, 0.2, 0.3],
+            "desi_delta_phi2": [0.0, 0.1, 0.2],
+            "desi_delta_vgsr": [1.0, 2.0, 3.0],
+        }
+        with h5py.File(path, "w") as handle:
+            group = handle.create_group("streams/GD1/members")
+            for name, values in columns.items():
+                group.create_dataset(name, data=np.asarray(values))
+
+        strict = TimelineForwardModel(
+            ForwardModelConfig(processed_h5_path=str(path), phi2_cut_deg=1.0, apply_pm_cuts=True)
+        )
+        strict.stream_config = {"pm1_range_masyr": [-1.0, 1.0], "pm2_range_masyr": [-1.0, 1.0]}
+        strict._load_observed_data()
+        assert len(strict.obs_particles["phi1"]) == 1
+
+        trusted = TimelineForwardModel(
+            ForwardModelConfig(processed_h5_path=str(path), phi2_cut_deg=None, apply_pm_cuts=False)
+        )
+        trusted.stream_config = strict.stream_config
+        trusted._load_observed_data()
+        assert len(trusted.obs_particles["phi1"]) == 3
+        assert np.allclose(trusted.obs_particles["selection_weight"], [0.2, 0.5, 0.8])
+        assert np.allclose(trusted.obs_particles["desi_p_thin"], [0.9, 0.8, 0.7])
+
+    def test_selection_weight_takes_precedence_for_density_scoring(self):
+        from src.forward_model.pipeline import (
+            observed_density_weights,
+            observed_gap_detection_weights,
+        )
+
+        particles = {
+            "membership_prob": np.array([1.0, 1.0]),
+            "selection_weight": np.array([0.25, 0.75]),
+        }
+
+        assert np.allclose(observed_density_weights(particles), [0.25, 0.75])
+        assert observed_gap_detection_weights(particles) is None
 
 
 # ---------------------------------------------------------------------------
@@ -526,6 +660,82 @@ class TestMultiEncounter:
         from src.forward_model.evolve import generate_perturbed_stream_multi_evolved
         assert callable(generate_perturbed_stream_multi_evolved)
 
+    def test_full_orbit_evolve_exposes_matched_control_switch(self):
+        """Full-orbit functions must support identical-path no-kick controls."""
+        import inspect
+
+        from src.forward_model.evolve import (
+            generate_perturbed_stream_evolved,
+            generate_perturbed_stream_multi_evolved,
+        )
+
+        assert "apply_kick" in inspect.signature(generate_perturbed_stream_evolved).parameters
+        assert "apply_kicks" in inspect.signature(
+            generate_perturbed_stream_multi_evolved
+        ).parameters
+
+    def test_multi_encounter_accepts_continuous_scale_radius(self, monkeypatch):
+        """Multi-event profile tests must not silently revert to NFW radii."""
+        from src.forward_model import pipeline
+        from src.forward_model.pipeline import ForwardModelConfig, TimelineForwardModel
+
+        rng = np.random.default_rng(13)
+        n = 500
+        stream = StreamParticles(
+            phi1=rng.uniform(-20, 20, n),
+            phi2=rng.normal(0, 0.2, n),
+            dist=np.full(n, 8.5),
+            pm1=rng.normal(-8.0, 0.1, n),
+            pm2=rng.normal(0.0, 0.1, n),
+            vrad=np.full(n, np.nan),
+            xyz_kpc=np.zeros((3, n)),
+            vxyz_kms=np.zeros((3, n)),
+        )
+        captured = []
+
+        def fake_apply(base, encounter):
+            captured.append(encounter)
+            return base
+
+        monkeypatch.setattr(pipeline, "apply_impulse_approximation", fake_apply)
+        model = TimelineForwardModel(
+            ForwardModelConfig(use_fast_mode=True, use_gnn_scorer=False)
+        )
+        model.base_stream = stream
+        model.phi1_range = (-20.0, 20.0)
+        model.obs_particles = {
+            "phi1": stream.phi1,
+            "phi2": stream.phi2,
+            "pm1": stream.pm1,
+            "pm2": stream.pm2,
+            "vrad": stream.vrad,
+        }
+        model.obs_profile = compute_density_profile(stream.phi1, model.phi1_range)
+        model.obs_gaps = []
+
+        result = model.evaluate_multi_encounter(
+            [
+                {
+                    "log10_mass": 7.0,
+                    "t_since_gyr": 2.0,
+                    "impact_phi1": -5.0,
+                    "scale_radius_factor": 3.0,
+                },
+                {
+                    "log10_mass": 8.0,
+                    "t_since_gyr": 1.0,
+                    "impact_phi1": 5.0,
+                    "scale_radius_kpc": 0.75,
+                },
+            ]
+        )
+
+        assert captured[0].scale_radius_kpc == pytest.approx(
+            3.0 * scale_radius_from_mass(1e7)
+        )
+        assert captured[1].scale_radius_kpc == pytest.approx(0.75)
+        assert result.encounters[0]["scale_radius_factor"] == pytest.approx(3.0)
+
     def test_multi_encounter_separation_constraints(self):
         """Multi-encounter grid should enforce separation constraints."""
         # Test that the grid sampler rejects encounters too close together
@@ -572,12 +782,25 @@ class TestDMModelComparison:
         assert profile["kick_suppression"] == 1.0
         assert profile["profile_type"] == "NFW"
 
+    def test_cdm_profile_scale_matches_standard_radius(self):
+        """CDM profile helper should use the same kpc radius convention."""
+        from src.simulation.subhalo import scale_radius_from_mass
+
+        mass = 1e8
+        profile = subhalo_profile_for_model("CDM", mass)
+        assert np.isclose(
+            profile["scale_radius_kpc"],
+            scale_radius_from_mass(mass),
+            rtol=1e-12,
+        )
+
     def test_sidm_has_core(self):
         """SIDM subhalos should have nonzero core radius."""
         profile = subhalo_profile_for_model("SIDM", 1e7, sigma_sidm_cm2g=1.0)
         assert profile["core_radius_kpc"] > 0.0
         assert profile["kick_suppression"] < 1.0
         assert profile["profile_type"] == "isothermal_core_NFW"
+        assert profile["scale_radius_kpc"] > subhalo_profile_for_model("CDM", 1e7)["scale_radius_kpc"]
 
     def test_fdm_has_soliton_core(self):
         """FDM subhalos should have a soliton core."""

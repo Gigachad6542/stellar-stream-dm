@@ -164,8 +164,12 @@ def detect_gaps(
     baseline = median_filter(density, size=window, mode="nearest")
     baseline = np.maximum(baseline, 1e-10)
 
-    # Poisson uncertainty per bin
-    sigma_poisson = np.sqrt(np.maximum(profile.counts, 1.0)) / max(profile.counts.sum(), 1.0)
+    # Poisson uncertainty on normalized density per bin. Gap depth is
+    # fractional relative to the local baseline, so its uncertainty must also
+    # be converted to fractional units before computing significance.
+    sigma_density = np.sqrt(np.maximum(profile.counts, 1.0)) / max(
+        profile.counts.sum(), 1.0
+    )
 
     # Find local minima in smoothed profile
     gaps = []
@@ -174,7 +178,8 @@ def detect_gaps(
             depth = 1.0 - smoothed[i] / baseline[i]
             if depth < min_depth:
                 continue
-            significance = depth / max(sigma_poisson[i], 1e-10)
+            sigma_depth = sigma_density[i] / baseline[i]
+            significance = depth / max(sigma_depth, 1e-10)
             if significance < min_significance:
                 continue
 
@@ -229,7 +234,9 @@ def find_density_minima(
     smoothed = gaussian_filter1d(density, sigma=smooth_sigma_bins, mode="nearest")
     window = min(15, n // 2) | 1
     baseline = np.maximum(median_filter(density, size=window, mode="nearest"), 1e-10)
-    sigma_poisson = np.sqrt(np.maximum(profile.counts, 1.0)) / max(profile.counts.sum(), 1.0)
+    sigma_density = np.sqrt(np.maximum(profile.counts, 1.0)) / max(
+        profile.counts.sum(), 1.0
+    )
 
     # Find minima as peaks of the inverted, smoothed density, ranked by prominence.
     inv = smoothed.max() - smoothed
@@ -243,7 +250,8 @@ def find_density_minima(
     feats = []
     for j, i in enumerate(idx):
         depth = float(1.0 - smoothed[i] / baseline[i])
-        sig = float(max(depth, 0.0) / max(sigma_poisson[i], 1e-10))
+        sigma_depth = sigma_density[i] / baseline[i]
+        sig = float(max(depth, 0.0) / max(sigma_depth, 1e-10))
         # estimate width at half-prominence
         half = baseline[i] * (1.0 - max(depth, 0.0) / 2.0)
         left = i
@@ -404,19 +412,29 @@ def radial_velocity_score(
     phi1_range: tuple[float, float],
     bin_width_deg: float = 4.0,
     min_bins: int = 2,
+    obs_vrad_error: Optional[np.ndarray] = None,
+    obs_vrad_weight: Optional[np.ndarray] = None,
+    intrinsic_dispersion_kms: float = 2.0,
 ) -> tuple[float, bool]:
     """Score the match of the radial-velocity (line-of-sight) track.
 
     Radial velocity is the phase-space dimension most directly tied to the
     "rewind": line-of-sight velocity errors dominate backward orbit integration.
     It is empty in the base Gaia membership tables and only becomes available
-    once real spectroscopic RVs are fused in (see ``src/data/multi_epoch.py``).
+    once real spectroscopic RVs are fused in (see ``src/data/multi_epoch.py``
+    and ``src/data/gd1_fusion.py``).
 
     Only observed bins with a finite RV are compared, so streams without RV
     coverage leave this term inactive. Returns ``(score, active)`` where
     ``active`` is False when there is insufficient observed RV to compare.
 
-    Lower is better; the score is the RMS of binned-median vrad residuals.
+    When per-star errors are available, observed bin locations and the final
+    residual RMS are weighted by inverse total variance, including an intrinsic
+    dispersion floor. Optional membership weights can restrict the comparison
+    to the component represented by the simulation (for example, the DESI
+    thin-stream probability rather than the cocoon).
+
+    Lower is better; the score is the weighted RMS of binned vrad residuals.
     """
     obs_vrad = np.asarray(obs_vrad, dtype=np.float64)
     obs_phi1 = np.asarray(obs_phi1, dtype=np.float64)
@@ -424,30 +442,77 @@ def radial_velocity_score(
     if finite.sum() < 5:
         return 0.0, False
 
+    if intrinsic_dispersion_kms <= 0:
+        raise ValueError("intrinsic_dispersion_kms must be positive")
+
+    weights = np.ones_like(obs_vrad, dtype=np.float64)
+    if obs_vrad_weight is not None:
+        obs_vrad_weight = np.asarray(obs_vrad_weight, dtype=np.float64)
+        if obs_vrad_weight.shape != obs_vrad.shape:
+            raise ValueError("obs_vrad_weight must match obs_vrad shape")
+        weights *= np.where(
+            np.isfinite(obs_vrad_weight),
+            np.clip(obs_vrad_weight, 0.0, None),
+            0.0,
+        )
+    if obs_vrad_error is not None:
+        obs_vrad_error = np.asarray(obs_vrad_error, dtype=np.float64)
+        if obs_vrad_error.shape != obs_vrad.shape:
+            raise ValueError("obs_vrad_error must match obs_vrad shape")
+        valid_error = np.isfinite(obs_vrad_error) & (obs_vrad_error > 0)
+        fallback_error = (
+            float(np.median(obs_vrad_error[valid_error]))
+            if np.any(valid_error)
+            else intrinsic_dispersion_kms
+        )
+        errors = np.where(valid_error, obs_vrad_error, fallback_error)
+        weights /= errors**2 + intrinsic_dispersion_kms**2
+
+    finite &= np.isfinite(weights) & (weights > 0)
+    if finite.sum() < 5:
+        return 0.0, False
+
     obs_phi1 = obs_phi1[finite]
     obs_vrad = obs_vrad[finite]
+    weights = weights[finite]
 
     n_bins = max(1, int(np.ceil((phi1_range[1] - phi1_range[0]) / bin_width_deg)))
     edges = np.linspace(phi1_range[0], phi1_range[1], n_bins + 1)
 
     resid = []
+    resid_weights = []
     for i in range(n_bins):
         sim_mask = (sim_phi1 >= edges[i]) & (sim_phi1 < edges[i + 1]) & np.isfinite(sim_vrad)
         obs_mask = (obs_phi1 >= edges[i]) & (obs_phi1 < edges[i + 1])
         if sim_mask.sum() < 3 or obs_mask.sum() < 3:
             continue
-        resid.append(np.median(sim_vrad[sim_mask]) - np.median(obs_vrad[obs_mask]))
+        obs_weights_bin = weights[obs_mask]
+        order = np.argsort(obs_vrad[obs_mask])
+        ordered_vrad = obs_vrad[obs_mask][order]
+        ordered_weights = obs_weights_bin[order]
+        midpoint = 0.5 * ordered_weights.sum()
+        weighted_median = ordered_vrad[
+            min(np.searchsorted(np.cumsum(ordered_weights), midpoint), len(ordered_vrad) - 1)
+        ]
+        resid.append(np.median(sim_vrad[sim_mask]) - weighted_median)
+        resid_weights.append(obs_weights_bin.sum())
 
     if len(resid) < min_bins:
         return 0.0, False
 
-    resid = np.array(resid)
+    resid = np.asarray(resid, dtype=np.float64)
+    resid_weights = np.asarray(resid_weights, dtype=np.float64)
     # Remove the overall median offset: an absolute line-of-sight velocity zero
     # point is a frame/convention nuisance (e.g. heliocentric sim vrad vs a
     # survey's GSR vlos), not a subhalo signal. Scoring the *residual* RV track
     # after subtracting the common offset isolates the differential perturbation.
-    resid = resid - np.median(resid)
-    return float(np.sqrt(np.mean(resid ** 2))), True
+    order = np.argsort(resid)
+    midpoint = 0.5 * resid_weights.sum()
+    offset = resid[order][
+        min(np.searchsorted(np.cumsum(resid_weights[order]), midpoint), len(resid) - 1)
+    ]
+    resid = resid - offset
+    return float(np.sqrt(np.average(resid**2, weights=resid_weights))), True
 
 
 # ---------------------------------------------------------------------------
@@ -481,6 +546,8 @@ def combined_score(
     kinematic_bin_width: float = 2.0,
     sim_vrad: Optional[np.ndarray] = None,
     obs_vrad: Optional[np.ndarray] = None,
+    obs_vrad_error: Optional[np.ndarray] = None,
+    obs_vrad_weight: Optional[np.ndarray] = None,
     rv_bin_width: float = 4.0,
 ) -> ScoreResult:
     """Compute all individual scores and a weighted combination.
@@ -513,6 +580,8 @@ def combined_score(
     if sim_vrad is not None and obs_vrad is not None:
         s_rv, rv_active = radial_velocity_score(
             sim_phi1, sim_vrad, obs_phi1, obs_vrad, phi1_range, rv_bin_width,
+            obs_vrad_error=obs_vrad_error,
+            obs_vrad_weight=obs_vrad_weight,
         )
 
     # Weighted combination over the active terms (RV only when present), so
@@ -544,6 +613,8 @@ def combined_score(
                 "profile": weights.profile,
             },
             "rv_active": rv_active,
+            "rv_error_weighted": obs_vrad_error is not None,
+            "rv_membership_weighted": obs_vrad_weight is not None,
             "n_obs_gaps": len(obs_gaps),
             "n_sim_gaps": len(sim_gaps),
         },

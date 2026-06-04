@@ -1168,7 +1168,7 @@ def generate_stream_spray(
 #   * nTrackChunks=5 is the speed/quality sweet spot (~15s vs ~21s at 11).
 # ---------------------------------------------------------------------------
 
-# Per-process cache: stream_name -> (streamdf, common_kwargs, frame, sc, sigv)
+# Per-process cache: (stream_name, leading) -> (streamdf, common_kwargs, frame, sc, sigv)
 _STREAMDF_BASE_CACHE: dict = {}
 
 
@@ -1193,7 +1193,13 @@ def _streamdf_sample_to_cartesian(xv: np.ndarray) -> tuple[np.ndarray, np.ndarra
     return pos, vel
 
 
-def _get_streamdf_base(stream_name: str, potential, config_path: str, mws):
+def _get_streamdf_base(
+    stream_name: str,
+    potential,
+    config_path: str,
+    mws,
+    leading: bool = True,
+):
     """Build (and cache per process) the smooth streamdf base for a stream.
 
     Returns (sdf, common_kwargs, frame, sc, sigv). The ~12s action-angle setup is
@@ -1201,8 +1207,9 @@ def _get_streamdf_base(stream_name: str, potential, config_path: str, mws):
     each streamgapdf reuses the cached aA/progenitor (only the impact transform,
     ~15s, is re-done per impact).
     """
-    if stream_name in _STREAMDF_BASE_CACHE:
-        return _STREAMDF_BASE_CACHE[stream_name]
+    cache_key = (stream_name, bool(leading))
+    if cache_key in _STREAMDF_BASE_CACHE:
+        return _STREAMDF_BASE_CACHE[cache_key]
     from galpy.df import streamdf  # noqa: PLC0415
     from galpy.actionAngle import (  # noqa: PLC0415
         actionAngleIsochroneApprox,
@@ -1221,11 +1228,11 @@ def _get_streamdf_base(stream_name: str, potential, config_path: str, mws):
     aA = actionAngleIsochroneApprox(pot=pot, b=b)
     sigv = float(sc.get("sigv_kms", 0.5))
     tdis = float(sc.get("spray_tdisrupt_gyr", sc.get("disruption_age_gyr", 3.0)))
-    common = dict(progenitor=prog, pot=pot, aA=aA, leading=True,
+    common = dict(progenitor=prog, pot=pot, aA=aA, leading=bool(leading),
                   nTrackChunks=5, tdisrupt=tdis * u.Gyr, ro=_RO, vo=_VO)
     sdf = streamdf(sigv * u.km / u.s, **common)
     base = (sdf, common, frame, sc, sigv)
-    _STREAMDF_BASE_CACHE[stream_name] = base
+    _STREAMDF_BASE_CACHE[cache_key] = base
     return base
 
 
@@ -1252,6 +1259,30 @@ def sample_impact_params(rng: np.random.Generator,
     }
 
 
+def impact_params_for_arm(impact_params: dict, leading: bool) -> dict:
+    """Copy impact parameters and enforce the streamgapdf arm-angle convention."""
+    params = dict(impact_params)
+    angle = abs(float(params["impact_angle_rad"]))
+    params["impact_angle_rad"] = angle if leading else -angle
+    return params
+
+
+def combine_stream_particles(*streams: StreamParticles) -> StreamParticles:
+    """Concatenate compatible StreamParticles realizations."""
+    if not streams:
+        raise ValueError("At least one stream is required")
+    return StreamParticles(
+        phi1=np.concatenate([stream.phi1 for stream in streams]),
+        phi2=np.concatenate([stream.phi2 for stream in streams]),
+        dist=np.concatenate([stream.dist for stream in streams]),
+        pm1=np.concatenate([stream.pm1 for stream in streams]),
+        pm2=np.concatenate([stream.pm2 for stream in streams]),
+        vrad=np.concatenate([stream.vrad for stream in streams]),
+        xyz_kpc=np.concatenate([stream.xyz_kpc for stream in streams], axis=1),
+        vxyz_kms=np.concatenate([stream.vxyz_kms for stream in streams], axis=1),
+    )
+
+
 def generate_stream_df(
     stream_name: str,
     potential,
@@ -1261,31 +1292,42 @@ def generate_stream_df(
     impact_params: Optional[dict] = None,
     config_path: str = "config/streams.yaml",
     mws=None,
+    leading: bool = True,
 ) -> StreamParticles:
     """Generate a stream from streamdf (no-impact) or streamgapdf (impact).
 
     The smooth action-angle base is cached per process; no-impact draws are fast,
-    each impact pays ~15s for the streamgapdf impact transform. Returns
-    StreamParticles in the same schema as generate_stream / generate_stream_spray.
+    each impact pays ~15s for the streamgapdf impact transform. ``leading``
+    selects the modeled tidal arm and is part of the per-process cache key.
+    Returns StreamParticles in the same schema as generate_stream /
+    generate_stream_spray.
     """
     from src.simulation.subhalo import scale_radius_from_mass  # noqa: PLC0415
     sdf, common, frame, sc, sigv = _get_streamdf_base(
-        stream_name, potential, config_path, mws)
+        stream_name, potential, config_path, mws, leading=leading)
     np.random.seed(seed)
 
     if not impact:
         df = sdf
     else:
         from galpy.df import streamgapdf  # noqa: PLC0415
-        p = impact_params or sample_impact_params(np.random.default_rng(seed))
+        p = impact_params_for_arm(
+            impact_params or sample_impact_params(np.random.default_rng(seed)),
+            leading=leading,
+        )
         m = float(p["mass"])
+        scale_radius_kpc = float(
+            p.get("scale_radius_kpc", scale_radius_from_mass(m))
+        )
+        if scale_radius_kpc <= 0:
+            raise ValueError("scale_radius_kpc must be positive")
         df = streamgapdf(
             sigv * u.km / u.s, **common,
             impactb=float(p["impactb_kpc"]) * u.kpc,
             subhalovel=np.array([0.0, float(p["vsub_kms"]), 0.0]) * u.km / u.s,
             timpact=float(p["timpact_gyr"]) * u.Gyr,
             impact_angle=float(p["impact_angle_rad"]) * u.rad,
-            GM=m * u.Msun, rs=scale_radius_from_mass(m) * u.kpc,
+            GM=m * u.Msun, rs=scale_radius_kpc * u.kpc,
         )
 
     xv = df.sample(n=n_stars)
@@ -1298,4 +1340,73 @@ def generate_stream_df(
         phi1=phi1[mask], phi2=phi2[mask], dist=dist[mask],
         pm1=pm1[mask], pm2=pm2[mask], vrad=vrad[mask],
         xyz_kpc=pos[:, mask], vxyz_kms=vel[:, mask],
+    )
+
+
+def generate_stream_df_two_arm(
+    stream_name: str,
+    potential,
+    n_stars: int = 1000,
+    seed: int = 0,
+    impact: bool = False,
+    impact_arm: str = "trailing",
+    impact_params: Optional[dict] = None,
+    config_path: str = "config/streams.yaml",
+    mws=None,
+) -> StreamParticles:
+    """Generate a matched two-arm streamdf/streamgapdf realization.
+
+    For an impact realization, only ``impact_arm`` uses streamgapdf; the other
+    arm remains a smooth streamdf sample. This is the appropriate real-stream
+    substrate when the observed catalog spans both arms but a localized
+    encounter affects only one.
+    """
+    if impact_arm not in {"leading", "trailing"}:
+        raise ValueError("impact_arm must be 'leading' or 'trailing'")
+    n_leading = n_stars // 2
+    n_trailing = n_stars - n_leading
+    leading_impact = bool(impact and impact_arm == "leading")
+    trailing_impact = bool(impact and impact_arm == "trailing")
+    leading_stream = generate_stream_df(
+        stream_name,
+        potential,
+        n_stars=n_leading,
+        seed=seed,
+        impact=leading_impact,
+        impact_params=impact_params,
+        config_path=config_path,
+        mws=mws,
+        leading=True,
+    )
+    trailing_stream = generate_stream_df(
+        stream_name,
+        potential,
+        n_stars=n_trailing,
+        seed=seed + 1_000_003,
+        impact=trailing_impact,
+        impact_params=impact_params,
+        config_path=config_path,
+        mws=mws,
+        leading=False,
+    )
+    combined = combine_stream_particles(leading_stream, trailing_stream)
+
+    sc = _load_stream_config(stream_name, config_path)
+    phi1_min, phi1_max = sc["phi1_range_deg"]
+    mask = (
+        (combined.phi1 >= phi1_min)
+        & (combined.phi1 <= phi1_max)
+        & (np.abs(combined.phi2) < sc["phi2_selection_deg"])
+        & np.isfinite(combined.phi1)
+        & np.isfinite(combined.phi2)
+    )
+    return StreamParticles(
+        phi1=combined.phi1[mask],
+        phi2=combined.phi2[mask],
+        dist=combined.dist[mask],
+        pm1=combined.pm1[mask],
+        pm2=combined.pm2[mask],
+        vrad=combined.vrad[mask],
+        xyz_kpc=combined.xyz_kpc[:, mask],
+        vxyz_kms=combined.vxyz_kms[:, mask],
     )

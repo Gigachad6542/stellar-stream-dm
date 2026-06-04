@@ -65,21 +65,29 @@ def concentration_from_mass(m_solar: float) -> float:
     return 17.0 * (m_solar / 1.0e8) ** (-0.13)
 
 
+def virial_radius_from_mass_kpc(m_solar: float) -> float:
+    """Return r_200 [kpc] for a halo mass in Msun.
+
+    ``rho_crit`` is often quoted in Msun/Mpc^3.  This codebase works in kpc, so
+    the value must be converted to Msun/kpc^3 before computing r_200.
+    """
+    if m_solar <= 0:
+        raise ValueError(f"Subhalo mass must be positive, got {m_solar} Msun")
+    rho_crit_kpc3 = 277.5 * (70.0 / 100.0) ** 2  # Msun/kpc^3
+    return float((3.0 * m_solar / (4.0 * np.pi * 200.0 * rho_crit_kpc3)) ** (1.0 / 3.0))
+
+
 def scale_radius_from_mass(m_solar: float, density_profile: str = "NFW") -> float:
     """Hernquist-equivalent scale radius [kpc] for a subhalo of given mass.
 
     For NFW: convert via r_s = r_200 / c.
-    For SIDM: use a cored profile with r_core ~ 0.3 * r_s.
+    For SIDM-like cored profiles: use a broader effective scale radius.
     """
     c = concentration_from_mass(m_solar)
-    # rho_crit,0 = 2.775e11 h^2 Msun/Mpc^3 = 277.5 h^2 Msun/kpc^3. The previous
-    # code used the Mpc^3 value but labelled the result kpc, making r_200 (and
-    # hence r_s) 1000x too small -> point-like subhalos. Use Msun/kpc^3 here.
-    rho_crit_kpc3 = 277.5 * (70.0 / 100.0) ** 2  # Msun/kpc^3
-    r_200_kpc = (3.0 * m_solar / (4.0 * np.pi * 200.0 * rho_crit_kpc3)) ** (1.0 / 3.0)
+    r_200_kpc = virial_radius_from_mass_kpc(m_solar)
     r_s_kpc = r_200_kpc / c
-    if density_profile == "isothermal_core_NFW":
-        r_s_kpc *= 0.5  # SIDM cores reduce effective scale radius
+    if density_profile in {"isothermal_core_NFW", "SIDM"}:
+        r_s_kpc *= 1.5
     # Convert NFW r_s to Hernquist a: a ~ 0.45 * r_s (same density profile peak)
     return 0.45 * r_s_kpc
 
@@ -121,7 +129,7 @@ def subhalo_profile_for_model(
 
     # Base NFW parameters
     c_nfw = concentration_from_mass(m_solar)
-    r_200 = (3.0 * m_solar / (4.0 * np.pi * 200.0 * 2.775e11 * (70.0 / 100.0) ** 2)) ** (1.0 / 3.0)
+    r_200 = virial_radius_from_mass_kpc(m_solar)
     r_s = r_200 / c_nfw
     a_hernquist = 0.45 * r_s
 

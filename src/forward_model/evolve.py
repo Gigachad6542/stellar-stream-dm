@@ -53,6 +53,49 @@ _RO: float = 8.0     # kpc
 _VO: float = 220.0   # km/s
 
 
+@dataclass(frozen=True)
+class SprayModelParameters:
+    """Nuisance parameters controlling the smooth particle-spray model."""
+
+    stream_age_gyr: float
+    progenitor_mass_msun: float
+    velocity_dispersion_factor: float
+
+
+def resolve_spray_model_parameters(
+    stream_config: dict,
+    stream_age_gyr: Optional[float] = None,
+    progenitor_mass_msun: Optional[float] = None,
+    velocity_dispersion_factor: Optional[float] = None,
+) -> SprayModelParameters:
+    """Resolve optional smooth-stream nuisance parameters with validation."""
+    resolved = SprayModelParameters(
+        stream_age_gyr=float(
+            stream_config.get(
+                "disruption_age_gyr",
+                stream_config.get("isochrone_age_gyr", 10.0),
+            )
+            if stream_age_gyr is None
+            else stream_age_gyr
+        ),
+        progenitor_mass_msun=float(
+            stream_config.get("prog_mass_solar", 2e4)
+            if progenitor_mass_msun is None
+            else progenitor_mass_msun
+        ),
+        velocity_dispersion_factor=float(
+            0.3 if velocity_dispersion_factor is None else velocity_dispersion_factor
+        ),
+    )
+    if resolved.stream_age_gyr <= 0:
+        raise ValueError("stream_age_gyr must be positive")
+    if resolved.progenitor_mass_msun <= 0:
+        raise ValueError("progenitor_mass_msun must be positive")
+    if resolved.velocity_dispersion_factor < 0:
+        raise ValueError("velocity_dispersion_factor must be non-negative")
+    return resolved
+
+
 # ---------------------------------------------------------------------------
 # Core: generate stream at impact epoch, apply kick, evolve to present
 # ---------------------------------------------------------------------------
@@ -68,6 +111,10 @@ def generate_perturbed_stream_evolved(
     cache_dir: str = "data/processed",
     mws=None,
     n_steps_back: int = 80,
+    apply_kick: bool = True,
+    stream_age_gyr: Optional[float] = None,
+    progenitor_mass_msun: Optional[float] = None,
+    velocity_dispersion_factor: Optional[float] = None,
 ) -> StreamParticles:
     """Generate a stream with a forced encounter, evolving through the MW potential.
 
@@ -94,6 +141,14 @@ def generate_perturbed_stream_evolved(
         cache_dir: Directory for cached ICs.
         mws: Pre-loaded galstreams.MWStreams instance.
         n_steps_back: Number of release-time bins for particle spray.
+        apply_kick: If False, follow the identical spray/integration path but
+            skip the velocity kick. This provides a matched full-orbit control
+            for candidate-vs-null comparisons without conflating generator or
+            numerical-path differences with an encounter signal.
+        stream_age_gyr: Optional smooth-stream disruption-age override.
+        progenitor_mass_msun: Optional particle-spray progenitor-mass override.
+        velocity_dispersion_factor: Optional spray velocity scale. The legacy
+            default is 0.3.
 
     Returns:
         StreamParticles at t=0 with the encounter gap evolved.
@@ -105,7 +160,13 @@ def generate_perturbed_stream_evolved(
     rng = np.random.default_rng(seed)
     sc = _load_stream_config(stream_name, config_path)
 
-    stream_age_gyr = sc.get("disruption_age_gyr", sc.get("isochrone_age_gyr", 10.0))
+    spray = resolve_spray_model_parameters(
+        sc,
+        stream_age_gyr=stream_age_gyr,
+        progenitor_mass_msun=progenitor_mass_msun,
+        velocity_dispersion_factor=velocity_dispersion_factor,
+    )
+    stream_age_gyr = spray.stream_age_gyr
     t_impact = encounter.t_since_impact_gyr
 
     if t_impact > stream_age_gyr:
@@ -152,8 +213,8 @@ def generate_perturbed_stream_evolved(
     # ---- Step 2: Sample release times and build spray ICs ----
     n_lead = n_stars // 2
     n_trail = n_stars - n_lead
-    k_v = 0.3
-    m_prog_msun = sc.get("prog_mass_solar", 2e4)
+    k_v = spray.velocity_dispersion_factor
+    m_prog_msun = spray.progenitor_mass_msun
 
     idx_lead = rng.integers(0, n_steps_back, n_lead)
     idx_trail = rng.integers(0, n_steps_back, n_trail)
@@ -219,13 +280,17 @@ def generate_perturbed_stream_evolved(
             pos_at_impact_T, vel_at_impact_T, frame,
         )
 
-        # Apply the 3D velocity kick
-        log.info("  Applying velocity kick (M=%.1e Msun, phi1=%.1f deg)...",
-                 encounter.mass_solar, encounter.encounter_phi1)
-        vel_kicked = _apply_3d_velocity_kick(
-            pos_at_impact, vel_at_impact,
-            phi1_at_impact, encounter,
-        )
+        if apply_kick:
+            # Apply the 3D velocity kick
+            log.info("  Applying velocity kick (M=%.1e Msun, phi1=%.1f deg)...",
+                     encounter.mass_solar, encounter.encounter_phi1)
+            vel_kicked = _apply_3d_velocity_kick(
+                pos_at_impact, vel_at_impact,
+                phi1_at_impact, encounter,
+            )
+        else:
+            log.info("  Matched no-kick control at t=%.2f Gyr", t_impact)
+            vel_kicked = vel_at_impact.copy()
 
         # Integrate kicked particles from impact epoch to present
         log.info("  Integrating kicked particles forward to present...")
@@ -485,6 +550,10 @@ def generate_perturbed_stream_multi_evolved(
     cache_dir: str = "data/processed",
     mws=None,
     n_steps_back: int = 80,
+    apply_kicks: bool = True,
+    stream_age_gyr: Optional[float] = None,
+    progenitor_mass_msun: Optional[float] = None,
+    velocity_dispersion_factor: Optional[float] = None,
 ) -> StreamParticles:
     """Generate a stream with MULTIPLE sequential encounters, fully orbit-integrated.
 
@@ -516,6 +585,13 @@ def generate_perturbed_stream_multi_evolved(
         cache_dir: Directory for cached ICs.
         mws: Pre-loaded galstreams.MWStreams instance.
         n_steps_back: Number of release-time bins for particle spray.
+        apply_kicks: If False, preserve the identical sequential integration
+            epochs while skipping every kick. This is the matched no-kick
+            control for a multi-encounter candidate.
+        stream_age_gyr: Optional smooth-stream disruption-age override.
+        progenitor_mass_msun: Optional particle-spray progenitor-mass override.
+        velocity_dispersion_factor: Optional spray velocity scale. The legacy
+            default is 0.3.
 
     Returns:
         StreamParticles at t=0 with all encounter gaps evolved.
@@ -530,7 +606,13 @@ def generate_perturbed_stream_multi_evolved(
     rng = np.random.default_rng(seed)
     sc = _load_stream_config(stream_name, config_path)
 
-    stream_age_gyr = sc.get("disruption_age_gyr", sc.get("isochrone_age_gyr", 10.0))
+    spray = resolve_spray_model_parameters(
+        sc,
+        stream_age_gyr=stream_age_gyr,
+        progenitor_mass_msun=progenitor_mass_msun,
+        velocity_dispersion_factor=velocity_dispersion_factor,
+    )
+    stream_age_gyr = spray.stream_age_gyr
 
     # Sort encounters by t_since_impact_gyr DESCENDING (oldest/earliest first)
     encounters_sorted = sorted(encounters, key=lambda e: e.t_since_impact_gyr, reverse=True)
@@ -586,8 +668,8 @@ def generate_perturbed_stream_multi_evolved(
     # Spray particles
     n_lead = n_stars // 2
     n_trail = n_stars - n_lead
-    k_v = 0.3
-    m_prog_msun = sc.get("prog_mass_solar", 2e4)
+    k_v = spray.velocity_dispersion_factor
+    m_prog_msun = spray.progenitor_mass_msun
 
     idx_lead = rng.integers(0, n_steps_back, n_lead)
     idx_trail = rng.integers(0, n_steps_back, n_trail)
@@ -675,16 +757,18 @@ def generate_perturbed_stream_multi_evolved(
             pos_enc_T, vel_enc_T, frame,
         )
 
-        # Apply 3D velocity kick
-        vel_kicked = _apply_3d_velocity_kick(
-            pos_current[existed_mask],
-            vel_current[existed_mask],
-            phi1_at_enc,
-            encounter,
-        )
-        vel_current[existed_mask] = vel_kicked
-
-        log.info("    Kick applied to %d particles", n_exist)
+        if apply_kicks:
+            # Apply 3D velocity kick
+            vel_kicked = _apply_3d_velocity_kick(
+                pos_current[existed_mask],
+                vel_current[existed_mask],
+                phi1_at_enc,
+                encounter,
+            )
+            vel_current[existed_mask] = vel_kicked
+            log.info("    Kick applied to %d particles", n_exist)
+        else:
+            log.info("    Matched control: kick skipped for %d particles", n_exist)
 
     # ---- Step 5: Integrate all particles from their current epoch to present ----
     log.info("  Integrating all %d particles to present (t=0)...", len(pos_current))

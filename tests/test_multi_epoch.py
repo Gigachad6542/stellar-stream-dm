@@ -121,3 +121,45 @@ class TestRadialVelocityScore:
         s_match, _ = radial_velocity_score(phi1, vrad, phi1, vrad, (0, 50))
         s_slope, _ = radial_velocity_score(phi1, 100.0 + 1.5 * phi1, phi1, vrad, (0, 50))
         assert s_slope > s_match
+
+    def test_uncertain_outlier_is_downweighted(self):
+        rng = np.random.default_rng(5)
+        phi1 = rng.uniform(0, 50, 4000)
+        vrad = 100.0 + 0.5 * phi1
+        obs_vrad = vrad.copy()
+        obs_error = np.full_like(vrad, 1.0)
+        outlier = (phi1 >= 20.0) & (phi1 < 24.0)
+        obs_vrad[outlier] += 30.0
+        obs_error[outlier] = 100.0
+
+        unweighted, _ = radial_velocity_score(phi1, vrad, phi1, obs_vrad, (0, 50))
+        weighted, _ = radial_velocity_score(
+            phi1,
+            vrad,
+            phi1,
+            obs_vrad,
+            (0, 50),
+            obs_vrad_error=obs_error,
+        )
+        assert weighted < unweighted
+
+    def test_membership_weights_select_thin_component(self):
+        rng = np.random.default_rng(8)
+        phi1 = rng.uniform(0, 50, 4000)
+        thin = 100.0 + 0.5 * phi1
+        obs_vrad = thin.copy()
+        cocoon = (phi1 >= 20.0) & (phi1 < 24.0)
+        obs_vrad[cocoon] += 25.0
+        thin_probability = np.ones_like(phi1)
+        thin_probability[cocoon] = 0.01
+
+        unweighted, _ = radial_velocity_score(phi1, thin, phi1, obs_vrad, (0, 50))
+        weighted, _ = radial_velocity_score(
+            phi1,
+            thin,
+            phi1,
+            obs_vrad,
+            (0, 50),
+            obs_vrad_weight=thin_probability,
+        )
+        assert weighted < unweighted
