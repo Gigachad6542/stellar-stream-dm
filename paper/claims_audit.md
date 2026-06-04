@@ -1,137 +1,152 @@
-# Claim-traceability audit (manuscript.md)
+# Claim-traceability audit
 
-Every quantitative claim in the manuscript mapped to its source. "Source" is a
-machine artifact (a JSON/checkpoint/script output) or a literature reference.
-Verified 2026-06-02 against the corrected-simulator pipeline.
+Every headline quantitative claim in `full_report.md` is mapped to a machine
+artifact, script, or literature reference. Verified/updated 2026-06-03.
 
-Legend: ✓ verified against artifact · 📖 literature · ⏳ pending (retrain in flight).
+Legend: OK = verified against an artifact; LIT = literature/reference claim; CAVEAT =
+reported with an explicit systematic limitation.
+
+## Scope split
+
+| Result class | Backend | Report status |
+|---|---|---|
+| Detector training, simulator validation, completeness, characterization | validated `streamdf` / `streamgapdf` | OK |
+| DM abundance/mass forecasts | validated detector completeness + analytic mass functions | OK, forecast |
+| Real-stream detector checks | calibrated detector on cleaned catalogs | OK, catalog-size caveat |
+| Timeline replay, injection-recovery, real GD-1 fit, multistream significance | corrected particle-spray + impulse/re-evolution forward model | CAVEAT |
+| Matched GD-1 background/profile diagnostics | matched controls plus two-arm `streamdf` / `streamgapdf` | INTERNAL VALIDATION; no real profile claim |
+| Kinematic frontier | model-free synthetic diagnostic | CAVEAT |
 
 ## Detector performance
+
 | Claim | Value | Source | Status |
-|---|---|---|---|
-| Corrected detector test AUC | 0.982 | `checkpoints/detector_df_20260602/calibration.json` (auc 0.9822) | ✓ |
-| Calibration temperature | T=0.54 | same (`temperature` 0.541) | ✓ |
-| Best validation accuracy | 0.951 | `…/gnn_v2_training_history.json` (max val_binary_acc 0.951) | ✓ |
-| v3 detector AUC (prior, broken sims) | 0.62 | `changelog/2026-06-01_v3-retrain-and-results.md` (0.618) | ✓ |
-| Zero false-positive rate | 0.000 | `scripts/detector_completeness.py` output | ✓ |
+|---|---:|---|---|
+| Corrected detector test AUC | 0.982 | `checkpoints/detector_df_20260602/calibration.json` | OK |
+| Calibration temperature | T=0.54 | same (`temperature` 0.541) | OK |
+| Best validation accuracy | 0.951 | `gnn_v2_training_history.json` | OK |
+| Zero false-positive operating point | 0.000 at threshold 0.5 | `scripts/detector_completeness.py` outputs | OK |
+| Score separation / reliability / embedding figures | Figures 6-8 | `paper/make_report_figures.py` | OK |
 
 ## Generator / simulator
+
 | Claim | Value | Source | Status |
-|---|---|---|---|
-| Generator separability (corrected) | G6 AUC 0.94 | `scripts/validate_df_generator.py` (0.938) | ✓ |
-| Generator separability (bespoke) | 0.57 | `changelog/2026-06-02_public-generator-streamgapdf.md` | ✓ |
-| Smoothness excess over Poisson | 0.01 | `validate_df_generator.py` (G1 0.007–0.017) | ✓ |
-| scale-radius bug magnitude | 10⁸M⊙→~0.3pc vs ~0.25kpc | `src/simulation/subhalo.py` `scale_radius_from_mass` | ✓ |
-| Foreground collapses separability | G6 0.96→0.56 | `changelog/2026-06-02_detector-data-pipeline.md` | ✓ |
-| nTrackChunks=5, isochrone b≈0.61 | — | this-session generator runs | ✓ |
-| Dataset size / balance | 15,830 (7,830 imp / 8,000 smooth) | chunk inspection `data/simulations_detector_df` | ✓ |
-| Supported streams | GD1, ATLAS, Jhelum, Orphan | smoke test (Pal5/Fjorm fail isochrone; Sylgr wraps) | ✓ |
+|---|---:|---|---|
+| Corrected generator separability | G6 AUC about 0.94 | `scripts/validate_df_generator.py` | OK |
+| Smoothness excess over Poisson | about 0.01 | `scripts/validate_df_generator.py` | OK |
+| Detector dataset size / balance | 15,830 total; 7,830 impact / 8,000 smooth | `data/simulations_detector_df` chunk inspection | OK |
+| Supported DF training streams | GD1, ATLAS, Jhelum, Orphan | generator smoke tests / allow-list | OK |
+| `streamdf` / `streamgapdf` provenance | Bovy 2014; Sanders, Bovy & Erkal 2016 | `references.bib` | LIT |
 
-## Real GD-1
+## Real-data detector application
+
 | Claim | Value | Source | Status |
-|---|---|---|---|
-| p_impact (range over cuts) | 0.77–0.99 | StreamImpactDetector run (0.774); timeline run (0.985) | ✓ |
-| OOD max σ (in-distribution) | 3.1σ (det.) / 2.7σ (timeline) | this-session detector + timeline runs | ✓ |
-| OOD prior pipeline | 391σ raw / 13σ error-DR | `project memory` / 2026-05-30 changelog | ✓/📖 |
-| Gap location, significance | φ₁≈50°, sig 37 | timeline run on STREAMFINDER | ✓ |
-| Catalog | 811 members | `data/processed/GD1_streamfinder.h5` | ✓ |
+|---|---:|---|---|
+| GD-1 detector result | p_impact=0.77, input OOD 3.1 sigma, known gap | StreamImpactDetector on `GD1_streamfinder.h5` | OK |
+| ATLAS detector result | p_impact=0.06, input OOD 1.9 sigma, null | StreamImpactDetector on cleaned ATLAS catalog | OK |
+| Member-count floor | p_impact rises spuriously as N falls below about 500 | GD-1 subsample diagnostic / Figure 17 | OK |
+| Catalog limitation | only GD-1 and ATLAS currently meet clean-count reliability | clean-catalog member counts | OK |
 
-## Completeness (test split)
+## Completeness and characterization
+
 | Claim | Value | Source | Status |
-|---|---|---|---|
-| Overall completeness | 0.57 | `detector_completeness.py` | ✓ |
-| vs mass | 0.48→0.72 (10⁷·⁵→10⁸·⁵) | same (0.478→0.723) | ✓ |
-| vs time | 0.75→0.39 (0.3→1.4 Gyr) | same (0.747→0.389) | ✓ |
-| step in gap strength | 0.05→1.00 | same | ✓ |
+|---|---:|---|---|
+| Overall completeness | about 0.57 | `scripts/detector_completeness.py` | OK |
+| Completeness vs mass | 0.48 -> 0.72 over 10^7.5 -> 10^8.5 Msun | same | OK |
+| Completeness vs time | 0.75 -> 0.39 over 0.3 -> 1.4 Gyr | same | OK |
+| Gap-strength step | about 0.05 for shallow gaps to about 1.0 for strong gaps | same / Figure 11 | OK |
+| Dedicated-head mass recovery | R^2 < 0 | `characterize_eval.py` on `detector_char_20260602` | OK |
+| Dedicated-head time recovery | R^2 about 0.2 | same | OK |
 
-## Characterization (embedding probe)
+## Dark-matter model discrimination
+
 | Claim | Value | Source | Status |
-|---|---|---|---|
-| mass R² (detected) | ≈0.18 | `characterize_probe.py` (0.183) | ✓ |
-| impact-parameter R² | ≈0.02 | same (0.024) | ✓ |
-| time R² | ≈0.04 | same (0.043) | ✓ |
-| dedicated head: mass recovery | R²<0 (unrecoverable) | `characterize_eval.py` on `detector_char_20260602` (R²=−0.72) | ✓ |
-| dedicated head: time recovery | R²≈0.2, med err ≈0.1 dex | same (R²=+0.24 detected) | ✓ |
+|---|---:|---|---|
+| CDM detectable-impact rate | lambda_det about 0.026 per GD-1-like stream | `outputs/dm/discrimination_forecast.json` | OK, forecast |
+| Rate suppression vs CDM | WDM3=0.24, WDM4=0.49, WDM6=0.88, FDM1e-22=0.26 | same | OK, forecast |
+| Detections for 3 sigma vs CDM | about 2 for WDM3 / FDM1e-22 | same | OK, forecast |
+| Streams to collect those detections | about 300-365 streams in the floor-normalized baseline; about 1,160-1,370 without the low-rate floor | same | CAVEAT, normalization-sensitive forecast |
+| Present seven-stream null power | CDM E[N_det]=0.18 and P0=0.83 baseline; favorable WDM/FDM also P0 about 0.95-0.96; Z<0.5 vs CDM | `outputs/dm/dm_null_power_table.json` | OK, forecast/interpretation |
+| Forecast sensitivity grid | 180 cases; CDM P0(7 streams)=0.60-0.98 across grid; max seven-stream Z=0.72 for WDM3 and 0.79 for FDM1e-22; median N_streams=533 and 463 | `outputs/dm/dm_forecast_sensitivity_grid.json` | OK, sensitivity forecast |
+| SIDM mass-spectrum separability | not separable by abundance/mass | same | OK |
+| SIDM gap-shape separability | core-sensitive: mean depth-AUC about 0.55, 0.63, 0.64, 0.68, 0.79, 0.82, 0.87, 0.84 for 1.25x through 5x scale-radius cores | `outputs/dm/sidm_morphology.json`; shards `outputs/dm/sidm_morphology_shard_20260603_155409_*.json` | CAVEAT, still low-trial morphology grid |
+| Density-profile pivot | Compact/cored/solitonic response ladder defines a controlled validation target; real-GD1 inference is not yet supported | `outputs/dm/density_profile_pivot.json`; `scripts/dm_density_profile_pivot.py` | CAVEAT, strategy/diagnostic |
 
-## DM-family distinguishability
+Forecast caveat: `scripts/dm_discrimination_forecast.py` uses a representative
+GD-1-like sensitivity band and completeness interpolation. The detections-needed result is
+fairly stable for favorable WDM/FDM models, but the streams-needed forecast depends strongly
+on the encounter-rate normalization/floor and should be treated as a sensitivity result, not
+a final journal constraint. `scripts/dm_forecast_sensitivity_grid.py` makes this explicit
+with a 180-case grid over rate normalization/floor, completeness scale, a detector-threshold
+completeness proxy, mass band, and stream count. The threshold axis is only a proxy and does
+not model false-positive contamination.
+
+Density-profile caveat: the pivot artifact is a strategy and diagnostic scaffold, not
+a final perturber-profile constraint. It uses local catalog counts, the existing SIDM
+morphology grid, and analytic impulse-shape metrics to define the next forward-model
+experiment.
+
+## Matched GD-1 background and profile diagnostics
+
+These results are internal validation evidence and factual caveats, not headline paper
+results or a real-data density-profile constraint.
+
 | Claim | Value | Source | Status |
-|---|---|---|---|
-| N_det FDM 10⁻²² | ≈5 | `dm_family_distinguishability.py` | ✓ |
-| N_det WDM 3/6 keV | ≈12 / ≈27 | same | ✓ |
-| N_det FDM 10⁻²¹ | ≈135 | same | ✓ |
-| SIDM via mass | ≈214k (hopeless) | same | ✓ |
+|---|---:|---|---|
+| Smooth-background sensitivity | held-out control-region primary score improves by up to 64%; morphology by up to 32% | `outputs/profile_grid/GD1/gd1_background_calibration_expanded_multiseed.json`; `scripts/run_gd1_background_calibration.py` | INTERNAL VALIDATION |
+| Fixed candidate robustness | 0/24 encounter/background combinations improve both local diagnostic families across the three-seed mean | `outputs/profile_grid/GD1/gd1_background_sensitivity_single_shortlist.json`; `scripts/run_gd1_background_sensitivity_shortlist.py` | INTERNAL VALIDATION |
+| Two-arm real-stream substrate | matched leading+trailing `streamdf` null spans the observed GD-1 range; localized `streamgapdf` impacts and continuous `scale_radius_kpc` are implemented | `src/simulation/stream_gen.py`; `scripts/run_gd1_streamgapdf_profile_screen.py` | INTERNAL VALIDATION |
+| Initial continuous-profile screen | no tested real-GD1 profile improves both local diagnostic families | `outputs/profile_grid/GD1/gd1_streamgapdf_profile_*.json` | INTERNAL VALIDATION |
+| Frozen next-stage validation | fixed 48-cell profile challenge, nuisance recovery, and no-impact FPR scripts implemented; no result claimed yet | `scripts/run_gd1_streamgapdf_injection_recovery.py`; `scripts/run_gd1_streamgapdf_null_fpr.py` | READY, PENDING RUN |
 
-## Forward model / population significance — DEFERRED, NOT REPORTED
-These components run on the **legacy** homemade generator (`generate_stream` +
-Erkal kick; scale-radius corrected but NOT the validated `streamdf`/`streamgapdf`).
-Per the integrity rule "only report results from components that used the new
-simulator," their numbers are **described but not stated** in §8–§9 of the
-manuscript; they are listed here only to document why. (Numbers exist in
-`outputs/multistream/joint_significance_corrected.json` etc. but are intentionally
-withheld pending the forward-model migration to the validated generator.)
-| Component | Status in paper | Reason |
-|---|---|---|
-| Timeline forward model (injection-recovery, real-GD-1 fit) | design described, no numbers | legacy generator |
-| Multi-stream joint significance | framework described, no numbers | built on the legacy forward model |
-| Fig 6 (multistream) | removed from manuscript | presented legacy-generator results |
-| Look-elsewhere inflation point | kept (qualitative, simulator-independent) | a general statistical fact |
+## Timeline forward model and multistream significance
 
-## Real-data detection (full report §9)
 | Claim | Value | Source | Status |
-|---|---|---|---|
-| GD-1 p_impact / OOD / gap | 0.77 / 3.1σ / yes (φ₁≈50°) | StreamImpactDetector on GD1_streamfinder.h5 (811) | ✓ |
-| ATLAS p_impact / OOD / gap | 0.06 / 1.9σ / none | StreamImpactDetector on ATLAS_clean.h5 (2860) | ✓ |
-| Member-count floor (N-dependence) | p 0.77→0.99 as N 811→100 | GD-1 subsample test | ✓ |
-| Clean catalogs for all 7 streams | STREAMFINDER auto-matched | fetch_streamfinder_streams.py | ✓ |
+|---|---:|---|---|
+| Injection-recovery | planted impact recovered at rank 0/36 | `outputs/injection_recovery/GD1/injection_recovery_results.json` | CAVEAT |
+| Real GD-1 gap localization | phi1 about 49.9 deg, depth about 0.37 | `outputs/forward_model/GD1/forward_model_results.json` | CAVEAT |
+| Real GD-1 attribution | gap real; single-subhalo attribution not significant after LE | forward-model significance outputs | CAVEAT |
+| Seven-stream joint result | Stouffer Z=1.40, Fisher p=0.28, incoherent | `outputs/multistream/joint_significance_corrected.json` | CAVEAT |
+| Naive to LE collapse | Sylgr 18.9 -> -1.3; Pal5 11.8 -> 1.0 | same | CAVEAT |
 
-## Forward model + multistream (full report §10–§11) — real-data analyses
+Forward-model caveat: these numbers use the corrected particle-spray + impulse
+forward-model backend, not the `streamgapdf` detector-training backend. They are
+valid as the current methods/upper-limit result, but should not be described as
+fully ported to the validated DF simulator.
+
+## Kinematic frontier
+
 | Claim | Value | Source | Status |
-|---|---|---|---|
-| Injection-recovery | rank 0/36, beats null | injection_recovery_results.json | ✓ |
-| Real GD-1 gap | φ₁=49.9°, depth 0.37 | forward_model_results.json | ✓ |
-| GD-1 single-subhalo attribution | not significant after LE | significance.json | ✓ |
-| Multistream joint (7 streams) | Stouffer Z=1.40, Fisher p=0.28, incoherent | joint_significance_corrected.json | ✓ |
-| Naive→LE collapse | Sylgr 18.9→−1.3, Pal5 11.8→1.0 | same | ✓ |
+|---|---:|---|---|
+| Proper-motion kink AUC, noise-free | about 0.99-1.0 | `scripts/kinematic_signal_test.py` | CAVEAT |
+| Proper-motion kink AUC, Gaia-like noise | about 0.49 | same / Figure 19 | CAVEAT |
+| Density gap AUC, noise-free/noisy | about 0.96 / 0.70 | same | CAVEAT |
+| Decision | do not retrain on kinematics yet | report Section 12.2 | OK |
 
-## Report figures (paper/figures/, current pipeline)
-fig1 example streams · fig2 ROC · fig3/fig5 completeness (1D/2D) · fig4 DM-family ·
-fig6 score separation · fig7 reliability · fig8 characterization · fig9 embedding PCA ·
-fig10 transfer functions. Generated by make_figures.py + make_report_figures.py.
+Kinematic caveat: this diagnostic uses simplified synthetic proper-motion noise; a
+publication-strength kinematic claim should use per-star Gaia error distributions
+and foreground/membership perturbations.
 
-## Literature claims (cited)
+## Literature claims
+
 | Claim | Reference | Status |
 |---|---|---|
-| `streamdf` action-angle stream model | Bovy (2014) | 📖 |
-| `streamgapdf` single-gap model | Sanders, Bovy & Erkal (2016) | 📖 |
-| `streamspraydf` particle spray | Fardal et al. (2015) | 📖 |
-| Erkal–Belokurov Plummer impulse | Erkal & Belokurov (2015) | 📖 |
-| concentration–mass relation | Ludlow et al. (2016) | 📖 |
-| galpy / MWPotential2014 | Bovy (2015) | 📖 |
-| galstreams tracks | Mateu (2023) | 📖 |
-| GINEConv | Hu et al. (2020) | 📖 |
-| STREAMFINDER GD-1 catalog | Ibata et al. (2021) | 📖 |
-| GD-1 gap-and-spur | Bonaca et al. (2019); Price-Whelan & Bonaca (2018) | 📖 |
-| subhalo mass-function constraints | Banik et al. (2021); Carlberg (2012) | 📖 |
-| Gaia DR3 | Gaia Collaboration (2023) | 📖 |
+| `streamdf` action-angle stream model | Bovy (2014) | LIT |
+| `streamgapdf` single-gap model | Sanders, Bovy & Erkal (2016) | LIT |
+| Erkal-Belokurov impulse | Erkal & Belokurov (2015) | LIT |
+| concentration-mass relation | Ludlow et al. (2016) | LIT |
+| galpy / MWPotential2014 | Bovy (2015) | LIT |
+| galstreams tracks | Mateu (2023) | LIT |
+| GINEConv | Hu et al. (2020) | LIT |
+| STREAMFINDER catalog | Ibata et al. (2021) | LIT |
+| GD-1 gap-and-spur | Bonaca et al. (2019); Price-Whelan & Bonaca (2018) | LIT |
+| subhalo mass-function constraints | Banik et al. (2021); Carlberg (2012) | LIT |
+| Gaia DR3 | Gaia Collaboration (2023) | LIT |
 
-## Outstanding (before submission)
-- §6 dedicated-head recovery number (⏳ retrain `detector_char_20260602`).
-- 391σ/13σ prior-OOD figures: confirm against the 2026-05-30 changelog wording.
-- Regenerate the LaTeX from this markdown (done: `mnras_paper.tex`).
+## Outstanding before submission
 
-## DM-type discrimination (improved, full report §8)
-| Claim | Value | Source | Status |
-|---|---|---|---|
-| CDM detectable-impact rate | λ_det≈0.026/stream | dm_discrimination_forecast.py | ✓ |
-| Abundance suppression (rate/CDM) | WDM3keV 0.24, FDM1e-22 0.26, WDM6keV 0.88 | same | ✓ |
-| Detections for 3σ (rate+mass) | ≈2 (WDM3keV, FDM1e-22) | same | ✓ |
-| Streams to collect them | ≈300 GD-1-like | same | ✓ |
-| SIDM via gap shape | cored gaps shallower, AUC≈0.84 | dm_sidm_morphology.py | ✓ |
-
-## Kinematic frontier (full report §12.2)
-| Claim | Value | Source | Status |
-|---|---|---|---|
-| Kink AUC noise-free | ~0.99-1.0 (beats density 0.96) | kinematic_signal_test.py | ✓ |
-| Kink AUC under Gaia noise | ~0.49 (chance) | noisy-chunk diagnostic | ✓ |
-| Density AUC noise-free / noisy | 0.96 / 0.70 | same | ✓ |
-| Conclusion | kinematic signal real but precision-limited; no retrain done | — | ✓ |
+- Expand SIDM morphology beyond the current exploratory grid.
+- Stress-test the abundance forecast against completeness and rate-normalization
+  assumptions.
+- Make the forward-model backend caveat visually explicit in any journal draft.
+- Rebuild `mnras_paper.tex` from the current condensed manuscript before submission.
+- Run `pytest -m "not slow"` and archive exact figure-generation commands.

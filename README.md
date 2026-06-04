@@ -7,10 +7,11 @@ characterization/forward-model layer.
 
 **Read the report** (in [`paper/`](paper/)):
 - [`paper/full_report.pdf`](paper/full_report.pdf) — the comprehensive technical
-  report (18 pp, 15 figures, real-data application + 7-stream significance);
+  report (22 pp, 19 figures, real-data application + 7-stream significance);
   source [`full_report.md`](paper/full_report.md).
-- [`paper/manuscript.pdf`](paper/manuscript.pdf) — the condensed paper (11 pp);
-  source [`manuscript.md`](paper/manuscript.md).
+- [`paper/manuscript.pdf`](paper/manuscript.pdf) — a condensed paper draft;
+  source [`manuscript.md`](paper/manuscript.md). The full report is the current
+  source of truth.
 
 ## What it does, and what it finds
 
@@ -27,18 +28,47 @@ characterization/forward-model layer.
   essentially unrecoverable from one gap (R²<0); only recency is weakly constrained
   (R²≈0.2).
 - **Dark-matter models** — distinguishing CDM/WDM/FDM/SIDM is a *population*
-  measurement; we quantify the required number of clean detections (≈5 for
-  FDM 10⁻²² eV, ≈12–27 for WDM 3–6 keV, unreachable for SIDM via the mass spectrum).
-- **Timeline forward model + multi-stream significance** — implemented and
-  described, but currently on a separate (legacy) generator; their quantitative
-  results are deferred until that generator is ported to the validated DFs.
+  measurement. A rate+mass Asimov forecast finds favorable suppressed models
+  (WDM 3 keV / FDM 10^-22 eV) need only about two clean detections to separate
+  from CDM, but CDM produces detectable impacts at only about 0.026 per
+  GD-1-like stream in the floor-normalized baseline, so collecting those
+  detections needs roughly 300-365 clean streams. Without that low-rate floor the
+  same forecast rises to roughly 1,200-1,400 streams, making the normalization
+  a first-order systematic. The present seven-stream sample is therefore
+  underpowered: CDM predicts only E[N_det]=0.18 detectable impacts and
+  P(0 detections)=0.83 in the floor-normalized baseline, while favorable
+  suppressed models also mostly predict null samples. A 180-case sensitivity
+  grid keeps the strongest seven-stream WDM/FDM alternatives below 1 sigma.
+  SIDM is not separable by abundance; its handle is shallower gaps from
+  sufficiently cored perturbers at fixed mass.
+- **Density-profile pivot** — controlled simulations show physically directional
+  compact/cored profile responses, but current real-GD1 candidates do not survive
+  matched smooth-background and joint morphology checks. A matched two-arm
+  `streamdf`/`streamgapdf` backend is implemented; real profile inference remains
+  blocked on injection/recovery and no-impact false-positive validation. ATLAS
+  remains the high-N null/control stream.
+- **Timeline forward model + multi-stream significance** — implemented as a
+  corrected particle-spray/impulse forward model with injection-recovery
+  validation. It recovers a planted GD-1-like impact at rank 0/36, but the real
+  seven-stream combination is null after look-elsewhere correction
+  (Stouffer Z=1.40, Fisher p=0.28), giving a CDM-consistent upper-limit result.
+- **Kinematic frontier** — a proper-motion kink is a real signal in noise-free
+  simulations, but the diagnostic collapses to chance under current Gaia-like
+  proper-motion noise; no expensive kinematic retrain is justified yet.
 
-All reported numbers derive from the validated `streamdf`/`streamgapdf` simulator.
+Simulator scope: detector training, completeness, characterization, and the
+primary DM population forecasts use the validated `streamdf`/`streamgapdf`
+pipeline. The timeline/multistream numbers use the corrected forward-model
+backend (`generate_stream` + impulse/re-evolution), and are reported as
+methods/upper-limit results with that systematic caveat.
 
 ## Target streams
-GD-1, ATLAS, Jhelum, Orphan are supported by the action-angle stream model used for
-training. (Pal 5 and Fjörm have near-circular orbits that break the isochrone
-action-angle approximation and are excluded by an allow-list.)
+The report studies seven streams: GD-1, Pal 5, Orphan-Chenab, ATLAS, Jhelum,
+Fjorm, and Sylgr. The validated action-angle generator currently supports the
+cleanest training batches for GD-1, ATLAS, Jhelum, and Orphan. The real-data
+detector is reliable today only where clean member counts are high enough
+(GD-1 and ATLAS); the population/forward-model analysis still records all seven
+streams with catalog-quality caveats.
 
 ## Repository layout
 ```
@@ -84,10 +114,25 @@ python scripts/detector_completeness.py --checkpoint <ckpt> --sim-dir data/simul
 # 5. Analyses
 python scripts/characterize_probe.py --checkpoint <ckpt> --sim-dir data/simulations_detector_df
 python scripts/dm_family_distinguishability.py
+python scripts/dm_discrimination_forecast.py
+python scripts/dm_sidm_morphology.py
 
-# Forward-model / multistream (legacy generator — see paper §8–§9)
+# Forward-model / multistream (corrected particle-spray/impulse backend)
 python scripts/run_injection_recovery.py --stream GD1 --fast
 python scripts/run_timeline_forward_model.py --stream GD1 --auto-detect --detector-checkpoint <ckpt>
+python scripts/run_multistream_analysis.py --out outputs/multistream/joint_significance_corrected.json
+
+# Matched two-arm GD-1 profile validation (must pass before real profile inference)
+python scripts/run_gd1_streamgapdf_injection_recovery.py --mode fixed --dry-run
+python scripts/run_gd1_streamgapdf_injection_recovery.py --mode nuisance --dry-run
+python scripts/run_gd1_streamgapdf_null_fpr.py --dry-run
+
+# Kinematic diagnostic and report figures
+python scripts/kinematic_signal_test.py
+python paper/make_figures.py
+python paper/make_report_figures.py
+python paper/make_report_figures2.py
+python paper/build_pdf.py full_report.md full_report.pdf
 ```
 See [`scripts/README.md`](scripts/README.md) for the full categorized index.
 

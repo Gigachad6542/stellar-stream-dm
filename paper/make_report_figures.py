@@ -117,7 +117,7 @@ def fig_completeness_2d(d):
                 ax.text(7.5+(i+0.5)*0.3, 0.2+(j+0.5)*0.325, f"{H[j,i]:.2f}", ha="center", va="center",
                         color="white" if H[j,i] < 0.6 else "black", fontsize=9, fontweight="bold")
     ax.set_xlabel("subhalo mass  log$_{10}(M/M_\\odot)$"); ax.set_ylabel("time since impact [Gyr]")
-    ax.set_title("Figure 5 — Completeness over mass $\\times$ recency")
+    ax.set_title("Completeness over mass $\\times$ recency")
     fig.colorbar(im, ax=ax, label="P(detect | impact)")
     save(fig, "fig5_completeness_2d.png")
 
@@ -130,7 +130,7 @@ def fig_score_separation(d):
     ax.hist(d["probs"][imp], bins=bins, color=C_I, alpha=0.7, label="detectable impact", density=True)
     ax.axvline(0.5, color=C_B, ls="--", lw=1.5, label="operating threshold")
     ax.set_xlabel("calibrated  $p_\\mathrm{impact}$"); ax.set_ylabel("normalized density")
-    ax.set_title("Figure 6 — Detector score separation (zero false positives)")
+    ax.set_title("Detector score separation (zero false positives)")
     ax.legend()
     save(fig, "fig6_score_separation.png")
 
@@ -146,7 +146,7 @@ def fig_reliability(d):
     ax.plot([0, 1], [0, 1], ls=":", color="#999", label="perfect calibration")
     ax.plot(xs, ys, "o-", color=C_G, lw=2, ms=7, label="detector")
     ax.set_xlabel("mean predicted $p_\\mathrm{impact}$"); ax.set_ylabel("observed impact fraction")
-    ax.set_title("Figure 7 — Calibration (reliability diagram)")
+    ax.set_title("Calibration (reliability diagram)")
     ax.legend(loc="upper left"); ax.set_xlim(0, 1); ax.set_ylim(0, 1)
     save(fig, "fig7_reliability.png")
 
@@ -167,7 +167,7 @@ def fig_characterization(dc):
     ax[1].plot([7.5, 8.7], [7.5, 8.7], ls=":", color="#666")
     ax[1].set_xlabel("true subhalo log$_{10}$M"); ax[1].set_ylabel("recovered")
     ax[1].set_title(f"(b) Mass: unrecoverable (R²={r2_score(mm,pm):+.2f})")
-    fig.suptitle("Figure 8 — Single-gap characterization is degeneracy-limited", y=1.02, fontsize=13)
+    fig.suptitle("Single-gap characterization is degeneracy-limited", y=1.02, fontsize=13)
     save(fig, "fig8_characterization.png")
 
 
@@ -180,7 +180,7 @@ def fig_embedding_pca(d):
     ax.scatter(Z[no, 0], Z[no, 1], s=7, alpha=0.4, color=C_S, label="no-impact", edgecolors="none")
     ax.scatter(Z[imp, 0], Z[imp, 1], s=7, alpha=0.5, color=C_I, label="detectable impact", edgecolors="none")
     ax.set_xlabel("PCA 1"); ax.set_ylabel("PCA 2")
-    ax.set_title("Figure 9 — GNN embedding separates impacted streams")
+    ax.set_title("GNN embedding separates impacted streams")
     ax.legend()
     save(fig, "fig9_embedding_pca.png")
 
@@ -196,7 +196,7 @@ def fig_transfer():
     ax.axvspan(10**7.5, 10**8.7, color="#fdd", alpha=0.5, label="our sensitive band")
     ax.set_xscale("log"); ax.set_xlabel("subhalo mass  $M/M_\\odot$")
     ax.set_ylabel("mass-function suppression  f(M)")
-    ax.set_title("Figure 10 — Why DM models differ only as a population")
+    ax.set_title("Why DM models differ only as a population")
     ax.legend(fontsize=8, loc="lower right"); ax.set_ylim(0, 1.05)
     save(fig, "fig10_transfer.png")
 

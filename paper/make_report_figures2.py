@@ -39,7 +39,7 @@ def fig_detector_vs_N():
     ax.axhline(0.5, ls=":", color="#999")
     ax.set_xscale("log"); ax.set_xlabel("number of clean member stars  N")
     ax.set_ylabel("detector $p_\\mathrm{impact}$ (real GD-1)")
-    ax.set_title("Figure 11 — The detector needs enough members")
+    ax.set_title("The detector needs enough members")
     ax.annotate("sparse sampling\nmimics gaps", xy=(70, 0.97), xytext=(120, 0.7),
                 color=C_B, fontsize=10, arrowprops=dict(arrowstyle="->", color=C_B))
     ax.legend(loc="lower left"); ax.set_ylim(0.4, 1.05)
@@ -59,7 +59,7 @@ def fig_multistream():
     ax.text(len(names)-0.5, 3.15, "3$\\sigma$", color=C_B, ha="right", fontsize=9)
     ax.set_xticks(x); ax.set_xticklabels(names); ax.set_ylabel("significance z")
     sj = d.get("stouffer_z", np.nan); fp = d.get("fisher_p", np.nan)
-    ax.set_title(f"Figure 12 — No coherent detection across 7 streams\n"
+    ax.set_title(f"No coherent detection across 7 streams\n"
                  f"naive z collapses under look-elsewhere; joint Stouffer Z={sj:.2f}, "
                  f"Fisher p={fp:.2f} (CDM-consistent)", fontsize=11)
     ax.legend(loc="upper left")
@@ -82,7 +82,7 @@ def fig_stream_tracks():
         icrs = tr.track.icrs
         ax.scatter(icrs.ra.deg, icrs.dec.deg, s=3, color=c, label=name)
     ax.set_xlabel("RA [deg]"); ax.set_ylabel("Dec [deg]")
-    ax.set_title("Figure 13 — Target stream sample (galstreams tracks)")
+    ax.set_title("Target stream sample (galstreams tracks)")
     ax.legend(ncol=4, fontsize=8, loc="lower center")
     save(fig, "fig13_stream_tracks.png")
 
@@ -98,7 +98,7 @@ def fig_erkal_kick():
         dv = (2 * G * M / w) * b / (b**2 + rs**2)  # km/s
         ax.plot(b, dv, color=c, lw=2, label=f"$10^{{{logM:.0f}}}\\,M_\\odot$ ($r_s$={rs:.2f} kpc)")
     ax.set_xlabel("impact parameter b [kpc]"); ax.set_ylabel("velocity kick $\\Delta v$ [km/s]")
-    ax.set_title("Figure 14 — Erkal & Belokurov (2015) impulse kick")
+    ax.set_title("Erkal & Belokurov (2015) impulse kick")
     ax.legend(); ax.set_xlim(0, 2)
     save(fig, "fig14_erkal_kick.png")
 
@@ -114,7 +114,7 @@ def fig_mass_function():
     ax.axvspan(10**7.5, 10**8.7, color="#fdd", alpha=0.5, label="our sensitive band")
     ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("subhalo mass  $M/M_\\odot$"); ax.set_ylabel("relative counts per dex")
-    ax.set_title("Figure 15 — Subhalo mass function by DM model")
+    ax.set_title("Subhalo mass function by DM model")
     ax.legend(fontsize=8); ax.set_ylim(1e-3, 1.5)
     save(fig, "fig15_mass_function.png")
 
@@ -128,7 +128,7 @@ def fig_detection_vs_strength():
         ax.text(i, v + 0.02, f"{v:.2f}", ha="center", fontweight="bold")
     ax.axhline(0.5, ls=":", color="#999")
     ax.set_xlabel("realised gap strength (depth)"); ax.set_ylabel("P(detect | impact)")
-    ax.set_title("Figure 16 — Detection is a step function in gap strength")
+    ax.set_title("Detection is a step function in gap strength")
     ax.set_ylim(0, 1.1)
     save(fig, "fig16_detection_vs_strength.png")
 
@@ -138,7 +138,15 @@ def fig_dm_forecast():
     order = ["FDM 1e-22", "WDM 3 keV", "WDM 4 keV", "WDM 6 keV", "FDM 1e-21", "SIDM"]
     order = [m for m in order if m in d]
     rate = [d[m]["rate_ratio"] for m in order]
-    ndet = [d[m].get("N_det_3sig", np.inf) for m in order]
+    def finite_or_inf(value):
+        if value is None:
+            return np.inf
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return np.inf
+        return value if np.isfinite(value) else np.inf
+    ndet = [finite_or_inf(d[m].get("N_det_3sig", np.inf)) for m in order]
     lbl = [m.replace(" ", "\n") for m in order]
     fig, ax = plt.subplots(1, 2, figsize=(9.4, 4.2))
     cols = [C_G if (np.isfinite(n) and n < 50) else ("#fec44f" if np.isfinite(n) and n < 1e4 else C_B) for n in ndet]
@@ -151,7 +159,7 @@ def fig_dm_forecast():
     for i, n in enumerate(ndet):
         ax[1].text(i, min(n, 1e6)*1.4, ("∞" if not np.isfinite(n) or n > 1e5 else f"{n:.0f}"),
                    ha="center", fontsize=9, fontweight="bold")
-    fig.suptitle("Figure 17 — DM discrimination using abundance + mass (SIDM needs gap shape)",
+    fig.suptitle("Baseline DM discrimination using abundance + mass (SIDM needs gap shape)",
                  y=1.02, fontsize=12)
     save(fig, "fig17_dm_forecast.png")
 
@@ -165,7 +173,7 @@ def fig_sidm_morphology():
     ax.bar(x + w/2, sidm, w, color=C_I, label=f"SIDM (cored, {d['core_factor']:.0f}× r_s)")
     ax.set_xticks(x); ax.set_xticklabels([f"$10^{{{m:.1f}}}$" for m in logM])
     ax.set_xlabel("subhalo mass  $M/M_\\odot$"); ax.set_ylabel("gap depth (at fixed mass)")
-    ax.set_title(f"Figure 18 — SIDM signal: cored subhalos carve shallower gaps (AUC {d['mean_auc']:.2f})")
+    ax.set_title(f"SIDM signal: cored subhalos carve shallower gaps (AUC {d['mean_auc']:.2f})")
     ax.legend(); ax.set_ylim(0, 1.15)
     save(fig, "fig18_sidm_morphology.png")
 

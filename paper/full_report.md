@@ -4,7 +4,8 @@
 **Scope:** Extended technical report. A condensed paper is in `paper/manuscript.md`.
 All results derive from the current pipeline: the detector and its analyses use the
 validated `streamdf`/`streamgapdf` simulator; the timeline forward model and the
-multi-stream significance are real-data analyses validated by injection–recovery.
+multi-stream significance use the corrected particle-spray/impulse forward-model backend
+and are reported with that systematic caveat after injection-recovery validation.
 
 *Format: a non-technical **Plain-language summary** and per-section **In plain terms**
 notes (blockquotes) accompany the full technical text; specialists may skip them.*
@@ -52,12 +53,16 @@ characterization is **degeneracy-limited**: a dedicated head cannot recover subh
 **population** measurement: combining the *abundance* of detectable impacts with their
 mass distribution in an Asimov likelihood-ratio forecast, a favorable model (WDM ≤3–4 keV,
 FDM 10⁻²² eV) separates from CDM with only **≈2 detected impacts** — though, since
-detectable impacts are rare (≈0.026 per stream), ≈300 streams to collect them — while SIDM
+detectable impacts are rare (baseline λ_det≈0.026 per stream), ≈300–365 streams are needed
+to collect them in the floor-normalized forecast; removing the low-rate floor raises this
+to ≈1,160–1,370 streams — while SIDM
 (identical abundance and mass function to CDM) is separable only through its shallower
-cored-subhalo gaps (matched-mass AUC ≈ 0.84). On real data the detector is in-distribution
+cored-subhalo gaps, with separability depending on core strength (mean AUC ≈0.54, 0.75,
+0.68, 0.82, and 0.84 for 1.25×, 2×, 3×, and 5× the NFW scale radius). On real data the detector is in-distribution
 and behaves correctly (flags GD-1's gap, nulls ATLAS), and we document a member-count floor
 (N≳500) below which sparse sampling mimics gaps. The timeline forward model recovers injected impacts exactly
-(rank 0/36); applied to the seven target streams with clean STREAMFINDER membership, the
+(rank 0/36); applied to the seven target streams using the best available cleaned Gaia
+memberships, the
 joint significance is null (Stouffer Z=1.40, Fisher p=0.28; incoherent), a CDM-consistent
 upper limit — and we show that naive per-stream significances up to 19σ collapse to ≈±2σ
 once the grid search is look-elsewhere-corrected.
@@ -324,18 +329,25 @@ recent subhalos. Over seven streams that is ≈0.18 expected detections, which i
 why the multi-stream search (§11) finds none; **the forecast and the data agree.** With
 both observables, distinguishing a favorable model from CDM at 3σ needs only **≈2 detected
 impacts** (Figure 15b) — fewer than the ≈5 from the mass shape alone, because abundance
-adds independent information — but *collecting* those two requires ≈300 GD-1-like streams
-at the CDM rate. Models whose cutoff lies outside our sensitive band (FDM 10⁻²¹ eV, WDM
+adds independent information — but *collecting* those two requires ≈300–365 GD-1-like
+streams in the floor-normalized baseline. Without the low-rate floor in the encounter-rate
+normalization, the same forecast rises to ≈1,160–1,370 streams. Thus the number of detected
+impacts needed is relatively stable, while the number of streams needed is a first-order
+rate-normalization systematic. Models whose cutoff lies outside our sensitive band (FDM 10⁻²¹ eV, WDM
 6 keV) remain effectively indistinguishable by abundance + mass.
 
 **SIDM is the exception.** It shares CDM's abundance and mass function, so it is invisible
 to the above. Its signal is the gap *shape*: cored, low-concentration SIDM subhalos deliver
 a softer impulse and carve systematically **shallower gaps than cuspy NFW halos at fixed
-mass** (Figure 16) — a matched-mass gap-depth separability of **AUC ≈ 0.84** (CDM depth
-≈ 1.0 vs SIDM ≈ 0.5 at 10⁸ M⊙). This is a genuine handle the mass-spectrum analysis
-entirely missed, but realizing it is harder than the abundance signal because gap depth is
-entangled with the unknown perturber mass (§7); it requires breaking that degeneracy (the
-forward model, or external mass constraints) or a population-level gap-depth comparison.
+mass** (Figure 16) — a matched-mass gap-depth separability of **AUC ≈ 0.82** for a
+strong-SIDM representative with a 3× larger scale radius (CDM depth ≈ 1.0 vs SIDM
+≈ 0.35–0.47 near 10⁸ M⊙). The publication grid is more nuanced: mean depth-AUC rises
+from near-chance at 1.25× (≈0.55) through 1.5×–2× (≈0.63–0.68), becomes good by
+2.5×–3× (≈0.79–0.82), and remains strong for 4×–5× cores (≈0.84–0.87). This is a
+genuine handle the mass-spectrum analysis entirely missed, but realizing it is harder
+than the abundance signal because gap depth is entangled with the unknown perturber mass
+(§7); it requires breaking that degeneracy (the forward model, or external mass
+constraints) or a population-level gap-depth comparison.
 
 ![Figure 10](figures/fig10_transfer.png)
 **Figure 13.** Mass-function suppression f(M) per DM model relative to our sensitive band.
@@ -345,19 +357,78 @@ forward model, or external mass constraints) or a population-level gap-depth com
 discrimination signal).
 
 ![Figure 17](figures/fig17_dm_forecast.png)
-**Figure 15.** Rigorous discrimination forecast. *(a)* detectable-impact rate relative to
+**Figure 15.** Baseline discrimination forecast. *(a)* detectable-impact rate relative to
 CDM (abundance suppression); *(b)* detections needed for 3σ from CDM combining abundance +
 mass (green = a handful; red = effectively never). SIDM is ∞ here — it needs the gap shape.
+The plotted stream-rate normalization retains the historical low-rate floor; removing it
+does not change the ≈2-detection conclusion but increases the stream-count forecast.
 
 ![Figure 18](figures/fig18_sidm_morphology.png)
-**Figure 16.** SIDM's only handle: at fixed mass, cored SIDM subhalos carve shallower gaps
-than cuspy NFW (CDM) ones (mean separability AUC ≈ 0.84).
+**Figure 16.** SIDM's only handle: at fixed mass, sufficiently cored SIDM subhalos carve
+shallower gaps than cuspy NFW (CDM) ones. The plotted representative uses a 3× larger
+scale radius and has mean separability AUC ≈0.82; the publication grid shows weak
+1.25×–1.5× cores are not reliably separable by this metric.
 
 > **In plain terms.** Different theories mainly change how *common* small clumps are, so the
 > count of detectable impacts is the strongest clue — and detectable impacts are rare, which
 > is why our seven streams show none. Telling a favorable theory from standard dark matter
-> needs only ≈2 clean detections, but ≈300 streams to find them. SIDM is special: it makes
+> needs only ≈2 clean detections, but hundreds to over a thousand clean streams may be needed
+> to find them, depending on the encounter-rate normalization. SIDM is special: it makes
 > the same number of clumps, but its puffier clumps leave shallower dents — a separate clue.
+
+**Table 4. DM-model discriminants against CDM.**
+
+| Model family | Primary discriminant | Forecast / validation metric | Present seven-stream interpretation |
+|---|---|---|---|
+| CDM | Reference abundance and cuspy-gap morphology | λ_det≈0.026 per stream; E[N_det]≈0.18 over seven streams; P(0 detections)≈0.83 | A null multi-stream result is unsurprising |
+| WDM 6 keV | Weak abundance + mass-shape suppression | rate/CDM≈0.88; ≈256 detections or ≈11,300 baseline streams for 3σ | Underpowered; effectively indistinguishable here |
+| WDM 4 keV | Moderate abundance + mass-shape suppression | rate/CDM≈0.49; ≈10 detections or ≈770 baseline streams for 3σ | Underpowered |
+| WDM 3 keV | Strong abundance + mass-shape suppression | rate/CDM≈0.24; ≈2.3 detections; ≈365 baseline streams or ≈1,366 raw-no-floor streams | Favorable forecast, but current data are far too sparse |
+| FDM 10⁻²¹ eV | Cutoff outside sensitive band | rate/CDM≈1.00; effectively not separable by abundance+mass | Indistinguishable here |
+| FDM 10⁻²² eV | Strong abundance + mass-shape suppression | rate/CDM≈0.26; ≈2.1 detections; ≈311 baseline streams or ≈1,163 raw-no-floor streams | Favorable forecast, but current data are far too sparse |
+| SIDM | Cored-gap morphology; no abundance/mass-spectrum signal in this setup | depth-AUC depends on core strength: ≈0.55, 0.63, 0.64, 0.68, 0.79, 0.82, 0.87, 0.84 for 1.25×, 1.5×, 1.75×, 2×, 2.5×, 3×, 4×, 5× scale-radius cores | Requires detected impacts and morphology calibration |
+
+**Seven-stream null-power check.** The present seven-stream sample is too small to
+turn the absence of reliable multi-stream detections into a dark-matter-model
+constraint. Using the same forecast machinery, CDM expects only E[N_det]=0.18
+detectable impacts across seven GD-1-like streams in the floor-normalized baseline,
+so P(0 detections)=0.83. Suppressed WDM/FDM models predict even fewer detections,
+so they also naturally produce null samples. In other words, the current null is
+expected under CDM and does not favor WDM/FDM; model discrimination requires the
+larger population samples in Table 4.
+
+| Model | E[N_det] baseline | P(0 det.) baseline | P(>=1 det.) baseline | P(0 det.) raw no-floor | Seven-stream Z vs CDM |
+|---|---:|---:|---:|---:|---:|
+| CDM | 0.18 | 0.83 | 0.17 | 0.95 | n/a |
+| WDM 6 keV | 0.16 | 0.85 | 0.15 | 0.96 | 0.07 |
+| WDM 4 keV | 0.09 | 0.92 | 0.08 | 0.98 | 0.29 |
+| WDM 3 keV | 0.04 | 0.96 | 0.04 | 0.99 | 0.42 |
+| FDM 10^-21 eV | 0.18 | 0.83 | 0.17 | 0.95 | 0.00 |
+| FDM 10^-22 eV | 0.05 | 0.95 | 0.05 | 0.99 | 0.45 |
+| SIDM | 0.18 | 0.83 | 0.17 | 0.95 | 0.00 |
+
+**Forecast sensitivity grid.** We also stress-tested the abundance+mass forecast over
+180 cases spanning the encounter-rate floor/normalization, completeness scale, a
+detector-threshold completeness proxy, the sensitive mass band, and future stream
+counts (`scripts/dm_forecast_sensitivity_grid.py`). The baseline CDM null probability
+is P0(7 streams)=0.83; across the full grid it spans 0.60-0.98. The central conclusion
+is unchanged: seven streams are not enough for model selection, but favorable WDM/FDM
+models remain separable in a future population sample.
+
+| Model | baseline N_streams(3-sigma) | grid median | grid 16-84% | grid min-max | max Z with 7 streams |
+|---|---:|---:|---:|---:|---:|
+| WDM 6 keV | 11,311 | 11,438 | 4,121-52,662 | 1,378-442,990 | 0.21 |
+| WDM 4 keV | 771 | 1,126 | 430-2,477 | 213-9,594 | 0.54 |
+| WDM 3 keV | 365 | 533 | 204-1,171 | 123-3,365 | 0.72 |
+| FDM 10^-21 eV | 2.5e8 | 1.9e8 | 2.1e7-1.9e9 | 7.0e6-2.6e10 | 0.00 |
+| FDM 10^-22 eV | 311 | 463 | 176-995 | 102-3,187 | 0.79 |
+| SIDM | not separable | not separable | not separable | not separable | 0.00 |
+
+The threshold axis in this grid is deliberately conservative in interpretation: it
+rescales completeness to mimic lower or higher detector operating points, but it does
+not include the false-positive cost of changing the classifier threshold. A journal
+version should replace this proxy with measured threshold-specific ROC/completeness
+curves before claiming a threshold optimization.
 
 ## 9. Real-data application: detection
 
@@ -415,6 +486,14 @@ look-elsewhere correction (below) the single-subhalo *attribution* is not signif
 gap is real, but the data do not single out a specific subhalo as its cause. This is the
 honest, physically grounded statement of the ambiguity, consistent with the §7 degeneracy.
 
+**Matched-control follow-up.** Subsequent real-GD1 diagnostics show that the local fit is
+sensitive to the assumed smooth-stream background and that tested encounter profiles do
+not yet improve both density/kinematics and cross-stream morphology together. A matched
+two-arm `streamdf`/`streamgapdf` backend with continuous perturber scale radius is now
+implemented, but it has not yet passed the injection/recovery and no-impact false-positive
+calibration required for real-data density-profile inference. We therefore make no
+subhalo-attribution or perturber-profile claim from this follow-up.
+
 The forward model uses an impulse, single-encounter approximation and a particle-spray
 re-evolution engine; these are documented as systematics (§12).
 
@@ -425,10 +504,10 @@ re-evolution engine; these are documented as systematics (§12).
 ## 11. Population significance across streams
 
 A single stream rarely yields a decisive detection, so we combine the seven targets. Per
-stream, the best-scoring hypothesis is compared against a null from no-impact realizations;
-the grid search is de-biased with a **best-of-grid look-elsewhere null** (each null
-realization is scored over the entire grid and its maximum retained, so the null undergoes
-the same search as the data); per-stream evidence is combined with Stouffer's Z and
+stream, the best-scoring hypothesis is compared against a **data-driven, gap-removed
+look-elsewhere null**: each null realization preserves the real stream's broad envelope
+and marginal kinematics, removes localized structure, is scored over the full grid, and
+retains its best candidate. Per-stream evidence is then combined with Stouffer's Z and
 Fisher's method, **gated by a coherence requirement**.
 
 The look-elsewhere correction is decisive (Figure 18): naive single-cell significances as
@@ -466,7 +545,11 @@ null (Stouffer Z = 1.40, Fisher p = 0.28).
    multi-impact streams require `streampepperdf` (unavailable in this galpy), so
    single-vs-multiple classification is deferred (gap *counting* is available model-free).
 5. **Forward-model approximations** (§10): impulse and single-encounter assumptions, and a
-   particle-spray re-evolution engine; the look-elsewhere null mitigates search bias.
+   corrected particle-spray re-evolution engine rather than the `streamgapdf` detector
+   backend; the data-driven look-elsewhere null mitigates search bias but does not remove
+   this simulator-backend systematic. A matched two-arm `streamgapdf` real-stream
+   substrate now exists, but real profile inference remains blocked on matched
+   injection/recovery and no-impact false-positive calibration.
 6. **Real-data volume**: DM-model discrimination needs the population sample sizes of §8;
    only a handful of streams currently have clean, dense catalogs.
 
@@ -505,7 +588,7 @@ astrometric noise floor.
 
 ## 13. Reproducibility and software validation
 
-A public repository with a conda environment specification, ∼290 unit tests, a categorized
+A public repository with a conda environment specification, 330 passing unit tests and 9 skipped checks, a categorized
 `scripts/` index, and a dated decision log (`changelog/`). Datasets regenerate
 deterministically from `scripts/generate_detector_data.py` (per-seed, resumable); clean
 catalogs from `scripts/fetch_streamfinder_streams.py`; figures from `paper/make_figures.py`,
@@ -523,13 +606,15 @@ in-distribution and behaves correctly (flags GD-1's gap, nulls ATLAS), subject t
 -count floor we quantified. We mapped detection completeness across impact type,
 demonstrated that single-gap characterization is degeneracy-limited (mass unrecoverable;
 recency weak), and reframed DM-model discrimination as a population measurement with an
-explicit sample-size cost. The timeline forward model recovers injected impacts exactly
+explicit, normalization-sensitive sample-size cost. The timeline forward model recovers injected impacts exactly
 and, applied to seven real streams, yields no coherent multi-stream detection — a
 CDM-consistent upper limit — while demonstrating an order-of-magnitude look-elsewhere
 inflation of naive significance. The path to a positive measurement is concrete:
 kinematic (not just density) detector features to reach weak/old impacts; deeper clean
 membership catalogs (N ≳ 500 per stream) to lift the detector floor and build the detection
-population of §8; and a multi-encounter forward model for crowded streams.
+population of §8; validating the new matched two-arm DF backend before any real
+density-profile inference; and a
+multi-encounter forward model for crowded streams.
 
 ## Methods
 
@@ -546,8 +631,9 @@ Gaia DR3-like per-star errors \citep[][scale 0.5–2×]{GaiaDR3}; RV dropped at 
 training on foreground-contaminated streams collapses separability, so the operating regime
 is clean catalogs. **Real catalogs.** STREAMFINDER \citep{Ibata2021}, auto-matched by track
 alignment; ATLAS track-consistency cut. **Forward model & statistics.** detect → rewind →
-re-impact (Erkal impulse) → re-evolve → score; per-stream null from no-impact realizations;
-best-of-grid look-elsewhere null; Stouffer/Fisher with a coherence gate. **Datasets &
+re-impact (Erkal impulse) → re-evolve → score; corrected particle-spray/impulse backend;
+data-driven gap-removed best-of-grid look-elsewhere null; Stouffer/Fisher with a coherence
+gate. **Datasets &
 models.** `data/simulations_detector_df` (15,830 sims); detector
 `checkpoints/detector_df_20260602`; characterization head `checkpoints/detector_char_20260602`.
 

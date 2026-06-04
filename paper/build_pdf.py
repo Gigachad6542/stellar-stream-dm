@@ -16,6 +16,7 @@ from pathlib import Path
 
 import matplotlib
 import markdown
+from xhtml2pdf import default as pisa_default
 from xhtml2pdf import pisa
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -72,7 +73,7 @@ def link_callback(uri, rel):
 
 CSS = """
 @page { size: A4; margin: 2.0cm 2.1cm; }
-body { font-family: "DV"; font-size: 10.5pt; line-height: 1.5; color: #111; text-align: justify; }
+body { font-family: "DV"; font-size: 10.5pt; line-height: 1.4; color: #111; text-align: justify; }
 h1 { font-size: 18pt; line-height: 1.2; margin: 0 0 3pt 0; }
 h2 { font-size: 13.5pt; margin: 17pt 0 5pt 0; border-bottom: 0.6pt solid #bbb; padding-bottom: 2pt; }
 h3 { font-size: 11.4pt; margin: 11pt 0 4pt 0; }
@@ -94,6 +95,7 @@ def register_fonts() -> None:
     pdfmetrics.registerFont(TTFont("DV-i", str(FONTDIR / "DejaVuSans-Oblique.ttf")))
     pdfmetrics.registerFont(TTFont("DV-bi", str(FONTDIR / "DejaVuSans-BoldOblique.ttf")))
     pdfmetrics.registerFontFamily("DV", normal="DV", bold="DV-b", italic="DV-i", boldItalic="DV-bi")
+    pisa_default.DEFAULT_FONT["dv"] = "DV"
 
 
 def main() -> int:

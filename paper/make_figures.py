@@ -70,7 +70,7 @@ def fig1_example_streams():
                    arrowprops=dict(arrowstyle="->", color=C_BAD))
     ax[2].set_title("Star counts along the stream"); ax[2].set_xlabel("$\\phi_1$ [deg]")
     ax[2].set_ylabel("stars / bin"); ax[2].legend(); ax[2].set_xlim(-30, 35)
-    fig.suptitle("Figure 1 — A subhalo flyby imprints a localized density gap", y=1.00, fontsize=13)
+    fig.suptitle("A subhalo flyby imprints a localized density gap", y=1.00, fontsize=13)
     save(fig, "fig1_what_impact_looks_like.png")
 
 
@@ -119,7 +119,7 @@ def fig2_roc():
     ax.plot([0, 1], [0, 1], ls=":", color="#999", label="chance")
     ax.fill_between(fpr, tpr, alpha=0.12, color=C_GOOD)
     ax.set_xlabel("false-positive rate"); ax.set_ylabel("true-positive rate")
-    ax.set_title("Figure 2 — Detector ROC on faithful simulations")
+    ax.set_title("Detector ROC on faithful simulations")
     ax.legend(loc="lower right"); ax.set_xlim(0, 1); ax.set_ylim(0, 1)
     save(fig, "fig2_detector_roc.png")
 
@@ -135,7 +135,7 @@ def fig3_completeness():
     ax[1].plot(timec, timep, "s-", color=C_SMOOTH, lw=2, ms=8)
     ax[1].set_xlabel("time since impact [Gyr]"); ax[1].set_ylabel("P(detect | impact)")
     ax[1].set_title("(b) Recent = more detectable"); ax[1].set_ylim(0.3, 0.8)
-    fig.suptitle("Figure 3 — Detection completeness across impact type", y=1.02, fontsize=13)
+    fig.suptitle("Detection completeness across impact type", y=1.02, fontsize=13)
     save(fig, "fig3_completeness.png")
 
 
@@ -165,7 +165,7 @@ def fig4_dm_family():
     ax[1].set_title("(b) Population test sample size")
     for i, v in enumerate(ndet):
         ax[1].text(i, v * 1.3, f"{v:,}" if v < 1000 else f"{v/1000:.0f}k", ha="center", fontsize=8, fontweight="bold")
-    fig.suptitle("Figure 4 — Telling dark-matter models apart is a population measurement",
+    fig.suptitle("Telling dark-matter models apart is a population measurement",
                  y=1.02, fontsize=13)
     save(fig, "fig4_dm_family.png")
 
