@@ -651,9 +651,9 @@ CDM-consistent upper limit — while demonstrating an order-of-magnitude look-el
 inflation of naive significance. The path to a positive measurement is concrete:
 kinematic (not just density) detector features to reach weak/old impacts; deeper clean
 membership catalogs (N ≳ 500 per stream) to lift the detector floor and build the detection
-population of §8; validating the new matched two-arm DF backend before any real
-density-profile inference; and a
-multi-encounter forward model for crowded streams.
+population of §8; exploiting kinematic and multi-tracer information to break the
+gap→profile degeneracy that the matched-backend screen (§10) shows currently blocks
+per-system DM typing; and a multi-encounter forward model for crowded streams.
 
 ## Methods
 

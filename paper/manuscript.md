@@ -432,9 +432,10 @@ and roughly 1,160–1,370 streams without the low-rate floor; SIDM requires gap-
 information. The corrected timeline forward model recovers planted
 impacts, but applied to seven real streams it yields no coherent multi-stream detection
 after look-elsewhere correction (Stouffer Z=1.40, Fisher p=0.28). The path to a physical
-measurement is concrete: more clean catalogs, validation of the matched two-arm DF
-backend before real profile inference, future high-precision kinematics, and
-multi-encounter modeling for crowded streams.
+measurement is concrete: more clean catalogs, breaking the gap→profile degeneracy
+that the matched-backend screen shows currently blocks per-system DM typing (via
+high-precision kinematics and multi-tracer streams), and multi-encounter modeling
+for crowded streams.
 
 ## Methods *(technical appendix)*
 

@@ -21,11 +21,12 @@ The near-term dark-matter strategy is now also explicitly separated:
 - **Population model selection:** current Gaia stream counts are underpowered for
   CDM/WDM/FDM model selection.
 - **Perturber density-profile inference:** controlled simulations retain
-  directional profile information, but current real-GD1 candidates fail matched
-  smooth-background and joint morphology checks. The new matched two-arm
-  `streamdf`/`streamgapdf` backend must pass injection/recovery and no-impact
-  false-positive gates before any real profile constraint is attempted. ATLAS
-  remains a high-N null/control stream.
+  directional profile information, but the pre-declared matched-backend
+  injection/recovery screen fails its identifiability gates (family accuracy
+  0.42–0.58 vs 0.70; recall 0.25–0.33 vs 0.60), so real-data profile inference is
+  blocked by a *measured* gap→profile degeneracy, not a pending test. Breaking it
+  needs kinematic / multi-tracer information. ATLAS remains a high-N null/control
+  stream.
 
 ## Core results in the current full report
 

@@ -122,7 +122,8 @@ python scripts/run_injection_recovery.py --stream GD1 --fast
 python scripts/run_timeline_forward_model.py --stream GD1 --auto-detect --detector-checkpoint <ckpt>
 python scripts/run_multistream_analysis.py --out outputs/multistream/joint_significance_corrected.json
 
-# Matched two-arm GD-1 profile validation (must pass before real profile inference)
+# Matched two-arm GD-1 profile-identifiability screen (fails its gates -> blocks real
+# profile inference; see changelog/2026-06-04_profile-identifiability-screen-result.md)
 python scripts/run_gd1_streamgapdf_injection_recovery.py --mode fixed --dry-run
 python scripts/run_gd1_streamgapdf_injection_recovery.py --mode nuisance --dry-run
 python scripts/run_gd1_streamgapdf_null_fpr.py --dry-run

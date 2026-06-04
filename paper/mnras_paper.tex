@@ -64,7 +64,12 @@ rises to ${\approx}1160$--1370 streams. SIDM instead requires gap-shape informat
 seven-stream real-data combination is null after look-elsewhere correction (Stouffer
 $Z=1.40$, Fisher $p=0.28$). These timeline/multistream numbers use the corrected
 particle-spray/impulse forward-model backend, not the \code{streamdf}/\code{streamgapdf}
-detector-training backend, and are presented with that systematic caveat.
+detector-training backend, and are presented with that systematic caveat. A pre-declared
+matched-\code{streamgapdf} screen further shows that a single stream gap does not identify
+the perturber's internal density profile (recovered-family accuracy $42$--$58\%$, below the
+$70\%$ gate, even with idealized data), so \emph{per-system} DM-model typing is not
+warranted on present data and is reported only as a population forecast and a
+simulation-level capability.
 \end{abstract}
 
 \begin{keywords}
@@ -374,14 +379,38 @@ correction the single-subhalo attribution is not significant.
 Matched-control follow-up diagnostics show that the local real-GD1 fit is sensitive to
 the assumed smooth-stream background and that tested profiles do not yet improve both
 density/kinematics and cross-stream morphology together. A matched two-arm
-\code{streamdf}/\code{streamgapdf} backend is implemented, but real profile inference
-remains blocked on injection/recovery and no-impact false-positive calibration.
+\code{streamdf}/\code{streamgapdf} backend with continuous perturber scale radius is now
+implemented and was put through a pre-declared injection/recovery identifiability screen
+(Fig.~\ref{fig:profileval}). The screen fails its frozen gates: with the real PWB18/DESI
+selection the recovered profile family is correct only $42\%$ of the time and detection
+recall is $25\%$ (on idealized fully-sampled streams these rise only to $58\%$ and
+$33\%$), against gates of $70\%$ and $60\%$; the recovered scale radius scatters by
+$0.34$--$0.41$~dex. The lowest-mass gaps are too shallow to detect, and detected gaps
+under-determine the perturber's scale radius, so selection sparsity worsens but does not
+cause the failure---the dominant limit is the intrinsic gap$\rightarrow$profile
+degeneracy. Per the pre-registered rule we make no subhalo-attribution, perturber-profile,
+or per-system DM-model claim for real GD-1.
+
+\begin{figure}
+\includegraphics[width=\columnwidth]{figures/fig20_profile_validation.png}
+\caption{Matched \code{streamgapdf} profile-identifiability screen. \emph{(a)} The two
+pre-declared gates---recovered-family accuracy and detection recall---fail both with the
+real GD-1 selection and on idealized fully-sampled streams (dashed red lines are the
+frozen gate thresholds). \emph{(b)} Recovered vs true perturber scale-radius factor on the
+clean screen: detected impacts (orange) scatter far off the $1{:}1$ line, so the
+perturber's density profile is not recoverable from the gap even in the best case.}
+\label{fig:profileval}
+\end{figure}
 
 \begin{plainterms}
 The next step beyond ``is there a gap?'' is ``what made it?'' We built a tool that
 rewinds a stream, drops in a simulated clump, fast-forwards, and checks the match. It
 recovers impacts we plant ourselves and confirms the GD-1 gap is real, but it cannot yet
-pin that gap on one specific clump.
+pin that gap on one specific clump. We also tested whether it could read a clump's
+``fluffiness''---the density profile that would tell ordinary cold dark matter from warmer
+or self-interacting kinds---and it cannot: even with perfect data, look-alike gaps come
+from very different clumps, so we make no claim about \emph{what kind} of dark matter made
+GD-1's gap.
 \end{plainterms}
 
 \section{Population significance across streams}
@@ -422,8 +451,10 @@ the timeline forward model and multi-stream significance framework run on a corr
 particle-spray + impulse backend, not the validated \code{streamdf}/\code{streamgapdf}
 of \S\ref{sec:sim}; their quantitative outputs are reported with this backend caveat.
 The single-encounter and impulse approximations also apply. The matched two-arm DF
-backend must pass injection/recovery and no-impact false-positive validation before
-real profile inference.
+backend has now been run through a pre-declared injection/recovery identifiability screen
+and fails its family-recovery ($42$--$58\%$, gate $70\%$) and recall ($25$--$33\%$, gate
+$60\%$) gates (Fig.~\ref{fig:profileval}), so real-data profile inference stays blocked by
+a measured gap$\rightarrow$profile degeneracy.
 
 \section{Conclusions}
 We presented a complete, reproducible pipeline for dark-matter subhalo-impact searches
@@ -442,9 +473,10 @@ and roughly 1160--1370 streams without the low-rate floor; SIDM requires gap-sha
 information. The corrected timeline forward model recovers planted
 impacts, but applied to seven real streams it yields no coherent multi-stream detection
 after look-elsewhere correction (Stouffer $Z=1.40$, Fisher $p=0.28$). The path to a
-physical measurement is concrete: more clean catalogs, validation of the matched
-two-arm DF backend before real profile inference, future high-precision kinematics,
-and multi-encounter modeling.
+physical measurement is concrete: more clean catalogs, breaking the
+gap$\rightarrow$profile degeneracy that the matched-backend screen shows currently blocks
+per-system DM typing (high-precision kinematics, multi-tracer streams), and
+multi-encounter modeling.
 
 \section*{Methods}
 \textbf{Potential \& integration.} galpy \code{MWPotential2014}; C \code{dop853}
