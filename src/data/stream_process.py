@@ -23,6 +23,8 @@ import numpy as np
 import yaml
 from astropy.table import Table
 
+from .galstreams_compat import make_mwstreams
+
 log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -58,8 +60,7 @@ def _get_stream_frame(sc: dict, stream_name: str):
         )
         return gc.GreatCircleICRSFrame(pole=pole)
 
-    import galstreams  # noqa: PLC0415
-    mws = galstreams.MWStreams(verbose=False)
+    mws = make_mwstreams(verbose=False)
     return mws[sc["galstreams_key"]].stream_frame
 
 
