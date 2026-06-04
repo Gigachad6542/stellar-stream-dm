@@ -37,7 +37,19 @@ Run roughly in this order. This is the live pipeline.
 |---|---|
 | `process_streams.py` | Download Gaia DR3 and process the streams into the HDF5 database. |
 | `process_streams_parallel.py` | Parallel Gaia download + processing for all streams. |
-| `process_gd1.py` | Download and process GD-1 from Gaia DR3. |
+| `process_gd1.py` | Process GD-1 from the published PWB18 masked-region catalog, with Gaia TAP fallback. |
+| `ingest_pwb18_gd1.py` | Verify and ingest the authoritative PWB18 GD-1 region catalog into dedicated track and PM+CMD HDF5 selections. |
+| `ingest_desi_gd1.py` | Verify and ingest the latest DESI DR2 GD-1 v3 thin-stream and thin+cocoon probability catalogs with real RVs. |
+| `run_gd1_cross_track_morphology.py` | Diagnostic conditional cross-stream morphology screen using DESI thin+cocoon probabilities without treating sparse spectroscopy as an along-stream density survey. |
+| `summarize_gd1_profile_diagnostics.py` | Join density+RV and cross-stream morphology screens with a Pareto/agreement diagnostic instead of an arbitrary weighted likelihood. |
+| `summarize_gd1_full_orbit_shortlist.py` | Consolidate the three full-orbit Pareto-shortlist checks and test whether fast-mode preferences survive physical evolution. |
+| `run_gd1_two_perturbation_shortlist.py` | Constrained 3x3 canonical+spur full-orbit two-perturbation test with matched no-kick controls and an explicit complexity guard. |
+| `run_gd1_background_calibration.py` | Calibrate smooth GD-1 spray age, progenitor mass, and velocity scale on control regions while holding both candidate-impact windows out. |
+| `run_gd1_background_sensitivity_shortlist.py` | Re-test fixed GD-1 single-encounter representatives across legacy, length-calibrated, and control-region-selected smooth backgrounds with matched controls. |
+| `run_gd1_streamgapdf_profile_screen.py` | Screen continuous perturber scale radius with a matched two-arm streamdf null and localized trailing-arm streamgapdf impact. |
+| `run_gd1_streamgapdf_injection_recovery.py` | Frozen matched two-arm streamgapdf profile validation: 48-cell fixed-geometry identifiability or nuisance-geometry recovery, with real-like PWB18/DESI selection and shard/merge support. |
+| `run_gd1_streamgapdf_null_fpr.py` | No-impact false-positive challenge using the same nuisance search and frozen decision threshold as streamgapdf injection/recovery. |
+| `fuse_gd1_pwb18_desi.py` | Fuse PWB18 main-track density selection with DESI v3 spectroscopy by one-to-one sky-position matching. |
 | `process_gd1_cached.py` | Process GD-1 from cached raw FITS (skip the Gaia TAP re-query). |
 | `fetch_multi_epoch.py` | Fetch + fuse real multi-epoch / multi-survey RVs & PMs for a stream. |
 | `clean_membership.py` | Extract track-consistent clean members from a contaminated catalog. |
@@ -67,6 +79,12 @@ Run roughly in this order. This is the live pipeline.
 | `run_inference.py` | Apply the trained GNN + NPE posterior to real stream data. |
 | `run_analysis.py` | Generate the gap catalog and final analysis figures. |
 | `run_real_stream_analysis.py` | Hierarchical Bayesian inference on literature-reported streams. |
+| `dm_discrimination_forecast.py` | Baseline Asimov forecast for DM abundance+mass discrimination. |
+| `dm_forecast_sensitivity_grid.py` | Reviewer-facing sensitivity grid over rate, completeness, threshold proxy, mass band, and stream count. |
+| `dm_null_power_table.py` | Summarize what the current seven-stream null can and cannot constrain. |
+| `dm_discriminants_table.py` | Build the report's unified DM-model discriminants table from forecast artifacts. |
+| `dm_density_profile_pivot.py` | Reframe the near-term DM analysis around perturber density profiles; writes target readiness and profile-ladder artifacts. |
+| `run_density_profile_grid.py` | Screen individual GD-1 perturber mass and compactness separately; refuses physical interpretation without selection and feature guards. |
 | `run_production_grid_gd1.py` | Production forward-model grid on GD-1. |
 | `run_sensitivity.py` | Minimum detectable subhalo mass per stream. |
 | `run_framework_validation.py` | Run the inference engine on mock + synthetic data. |
@@ -95,6 +113,8 @@ Run roughly in this order. This is the live pipeline.
 | `validate_v2_dataset.py` | Validate a V2 simulation chunk dataset before training. |
 | `audit_v2_signal_thresholds.py` | Audit whether V2 impact labels are learnable before a GNN run. |
 | `diagnose_v2_signal.py` | Diagnose whether a V2 binary target is visible in simulated features. |
+| `validate_pwb18_gd1.py` | Validate PWB18 provenance, masks, frame mapping, contamination correction, and target-feature stability before profile inference. |
+| `validate_desi_gd1.py` | Validate DESI v3 probabilities, RVs, frame mapping, and target-region density/kinematics before profile inference. |
 
 ## 8. Experimental — JAX integrator (not in the default path)
 
