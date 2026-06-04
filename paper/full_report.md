@@ -65,7 +65,12 @@ and behaves correctly (flags GD-1's gap, nulls ATLAS), and we document a member-
 memberships, the
 joint significance is null (Stouffer Z=1.40, Fisher p=0.28; incoherent), a CDM-consistent
 upper limit — and we show that naive per-stream significances up to 19σ collapse to ≈±2σ
-once the grid search is look-elsewhere-corrected.
+once the grid search is look-elsewhere-corrected. Finally, a pre-declared
+matched-`streamgapdf` screen shows that a single stream gap does not identify the
+perturber's internal density profile (recovered-family accuracy 42–58%, below the 70%
+gate, even with idealized data), so *per-system* DM-model typing is not warranted on
+present data and is reported only as a population forecast (§8) and a simulation-level
+capability.
 
 ---
 
@@ -490,16 +495,48 @@ honest, physically grounded statement of the ambiguity, consistent with the §7 
 sensitive to the assumed smooth-stream background and that tested encounter profiles do
 not yet improve both density/kinematics and cross-stream morphology together. A matched
 two-arm `streamdf`/`streamgapdf` backend with continuous perturber scale radius is now
-implemented, but it has not yet passed the injection/recovery and no-impact false-positive
-calibration required for real-data density-profile inference. We therefore make no
-subhalo-attribution or perturber-profile claim from this follow-up.
+implemented, and we put it through a pre-declared injection/recovery identifiability
+screen before any real-data use.
+
+**Profile-identifiability screen (Figure 18).** We plant known impacts spanning three
+masses (10⁷·⁵–10⁸·⁵ M⊙) and four perturber density profiles — compact/cuspy (0.5× the NFW
+scale radius), NFW-like (1×), cored (3×), and very cored (10×) — into the matched backend
+under the GD-1 footprint, then search the profile freely with the *frozen* scoring rule
+and decision gates (family accuracy ≥ 0.70, detection recall ≥ 0.60). The screen fails the
+gates decisively. With the real PWB18/DESI selection applied, the recovered profile family
+is correct only **42%** of the time and detection recall is **25%**; the recovered scale
+radius scatters by **0.41 dex** (a factor ≈ 2.6) about the truth. Repeating the screen on
+idealised, fully-sampled streams with no selection lifts these only to **58%** and **33%**
+(scale RMSE 0.34 dex) — still well short of both gates (Figure 18a). Two limits compound:
+the lowest-mass (10⁷·⁵ M⊙) gaps are too shallow to detect at all, and *where a gap is
+detected* the joint density-and-morphology shape under-determines the perturber's internal
+scale radius (Figure 18b). Selection sparsity worsens the result but is not its root cause;
+the dominant limit is the intrinsic gap→profile degeneracy.
+
+Per the pre-registered decision rule, a failed identifiability screen blocks real-data
+profile inference. We therefore make **no** subhalo-attribution, perturber-profile, or
+per-system DM-model claim for real GD-1. Density-profile DM typing remains physically
+informative in *controlled* simulations (§8), but is not warranted on present data.
+
+![Figure 20](figures/fig20_profile_validation.png)
+**Figure 18.** Matched `streamgapdf` profile-identifiability screen. *(a)* The two
+pre-declared gates — recovered-family accuracy and detection recall — fail both with the
+real GD-1 selection (dark) and on idealised fully-sampled streams (light); dashed red lines
+are the frozen gate thresholds. *(b)* Recovered vs true perturber scale-radius factor on
+the clean screen: detected impacts (orange) scatter far off the 1:1 line and undetected
+cells (grey) cluster at low mass, so the perturber's density profile is not recoverable
+from the gap even in the best case.
 
 The forward model uses an impulse, single-encounter approximation and a particle-spray
 re-evolution engine; these are documented as systematics (§12).
 
 > **In plain terms.** The "replay" tool perfectly recovers impacts we plant ourselves,
 > and on real GD-1 it confirms the gap is there — but it cannot pin that gap on one
-> specific clump, because many clumps could have made it.
+> specific clump, because many clumps could have made it. We also tested whether it could
+> read a clump's "fluffiness" — the density profile that would distinguish ordinary cold
+> dark matter from warmer or self-interacting kinds. It cannot: even with perfect data,
+> look-alike gaps come from very different clumps (Figure 18). So we make no claim about
+> *what kind* of dark matter made GD-1's gap.
 
 ## 11. Population significance across streams
 
@@ -510,7 +547,7 @@ and marginal kinematics, removes localized structure, is scored over the full gr
 retains its best candidate. Per-stream evidence is then combined with Stouffer's Z and
 Fisher's method, **gated by a coherence requirement**.
 
-The look-elsewhere correction is decisive (Figure 18): naive single-cell significances as
+The look-elsewhere correction is decisive (Figure 19): naive single-cell significances as
 large as 19σ (Sylgr) and 12σ (Pal 5) collapse to ≈ ±2σ once the search is accounted for.
 Per-stream corrected evidence is modest and mixed in sign (Table 3); the joint result is
 **null** — Stouffer Z = 1.40 (p = 0.08), Fisher χ² ⇒ p = 0.28, with the coherence gate not
@@ -525,7 +562,7 @@ result: unaccounted-for trials manufacture many-sigma "signals" from noise.
 | z (LE) | +0.4 | +2.2 | +2.7 | +1.1 | +1.0 | −2.5 | −1.3 |
 
 ![Figure 12](figures/fig12_multistream.png)
-**Figure 18.** No coherent detection across seven streams. Naive per-stream significance
+**Figure 19.** No coherent detection across seven streams. Naive per-stream significance
 (grey) collapses under the look-elsewhere correction (blue); the joint significance is
 null (Stouffer Z = 1.40, Fisher p = 0.28).
 
@@ -548,8 +585,10 @@ null (Stouffer Z = 1.40, Fisher p = 0.28).
    corrected particle-spray re-evolution engine rather than the `streamgapdf` detector
    backend; the data-driven look-elsewhere null mitigates search bias but does not remove
    this simulator-backend systematic. A matched two-arm `streamgapdf` real-stream
-   substrate now exists, but real profile inference remains blocked on matched
-   injection/recovery and no-impact false-positive calibration.
+   substrate now exists and has been put through a pre-declared injection/recovery
+   identifiability screen; the screen fails the family-recovery (42–58%, gate 70%) and
+   detection-recall (25–33%, gate 60%) gates (§10), so real-data profile inference stays
+   blocked — now by a *measured* gap→profile degeneracy, not merely a pending test.
 6. **Real-data volume**: DM-model discrimination needs the population sample sizes of §8;
    only a handful of streams currently have clean, dense catalogs.
 
@@ -559,7 +598,7 @@ obvious way to raise the detectable rate — and thus the DM-typing power — is
 the *kinematic* signature: a subhalo flyby imprints a localized, antisymmetric "kink" in
 the mean proper motion along the stream (the velocity analog of the density gap). We
 tested this directly. In **noise-free** simulations the kink is a powerful discriminant —
-a matched kink statistic reaches AUC ≈ 1.0, *exceeding* the density gap (≈0.96; Figure 19).
+a matched kink statistic reaches AUC ≈ 1.0, *exceeding* the density gap (≈0.96; Figure 20).
 But under **realistic Gaia proper-motion errors** the same statistic collapses to ≈0.49
 (chance), because the velocity kick (∼0.1 mas yr⁻¹) sits below the per-star astrometric
 noise for faint stream stars; the density gap, a counting statistic, is far more
@@ -575,7 +614,7 @@ This, together with more clean dense catalogs (§9), is the concrete route to ra
 detectable rate and hence the dark-matter-typing power of the method.
 
 ![Figure 19](figures/fig19_kinematic_noise.png)
-**Figure 19.** The kinematic kink out-performs the density gap in noise-free simulations
+**Figure 20.** The kinematic kink out-performs the density gap in noise-free simulations
 (AUC ≈ 1.0 vs 0.96) but collapses to chance under realistic Gaia proper-motion errors,
 while the density gap stays robust — the velocity signal is real but below today's
 astrometric noise floor.

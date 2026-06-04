@@ -347,13 +347,25 @@ identify one subhalo as its cause.
 Matched-control follow-up diagnostics show that the local real-GD1 fit is sensitive
 to the assumed smooth-stream background and that tested profiles do not yet improve
 both density/kinematics and cross-stream morphology together. A matched two-arm
-`streamdf`/`streamgapdf` backend is implemented, but real profile inference remains
-blocked on injection/recovery and no-impact false-positive calibration.
+`streamdf`/`streamgapdf` backend with continuous perturber scale radius is now
+implemented and was put through a pre-declared injection/recovery identifiability
+screen. The screen fails its frozen gates: the recovered profile family is correct
+only 42% of the time with the real GD-1 selection (58% on idealized, fully-sampled
+streams) against a 70% gate, and detection recall is 25–33% against a 60% gate. The
+lowest-mass gaps are too shallow to detect, and detected gaps under-determine the
+perturber's scale radius (recovery RMSE 0.34–0.41 dex). Selection sparsity worsens
+but does not cause this; the dominant limit is the intrinsic gap→profile degeneracy.
+Per the pre-registered rule, real-data profile inference and per-system DM-model
+typing remain blocked.
 
 > **In plain terms.** The next step beyond "is there a gap?" is "what made it?" We
 > built a tool that rewinds a stream, drops in a simulated clump, fast-forwards, and
 > checks the match. It can recover impacts we plant ourselves and it confirms the
-> GD-1 gap is real, but it cannot yet pin that gap on one specific clump.
+> GD-1 gap is real, but it cannot yet pin that gap on one specific clump. And when we
+> ask the harder question — what *kind* of clump, read from its density profile (the
+> fingerprint that distinguishes cold from warm or self-interacting dark matter) — even
+> perfect data cannot tell the look-alikes apart, so we make no claim about which
+> dark-matter model made GD-1's gap.
 
 ## 9. Population significance across streams
 
@@ -397,9 +409,10 @@ result is a CDM-consistent upper limit, not a dark-matter detection.
    multi-stream significance framework run on a corrected particle-spray + impulse
    backend, not the validated `streamdf`/`streamgapdf` of §3. The quantitative outputs
    are therefore reported only with this simulator-backend caveat. The single-encounter
-   and impulse approximations also apply. The new matched two-arm DF backend must pass
-   injection/recovery and no-impact false-positive validation before real profile
-   inference.
+   and impulse approximations also apply. The new matched two-arm DF backend has now been
+   run through a pre-declared injection/recovery identifiability screen and fails its
+   family-recovery (42–58%, gate 70%) and recall (25–33%, gate 60%) gates (§8), so
+   real-data profile inference stays blocked by a measured gap→profile degeneracy.
 
 ## 11. Conclusions
 

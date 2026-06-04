@@ -49,6 +49,12 @@ The nuisance and null challenges use the same frozen search and decision rule:
 No validation result is claimed yet. The scripts and frozen gates are ready for
 the staged challenge.
 
+**Update (2026-06-04, same day):** the fixed identifiability screen has now been
+run (with and without real selection). The family-recovery and recall gates fail
+decisively (family 0.42 real / 0.58 idealized vs 0.70; recall 0.25 / 0.33 vs 0.60),
+so per handoff step 2 the staged plan terminates at "diagnose and do not proceed to
+real data." See `changelog/2026-06-04_profile-identifiability-screen-result.md`.
+
 ## Source artifacts
 
 - `outputs/profile_grid/GD1/gd1_background_calibration_expanded_multiseed.json`
